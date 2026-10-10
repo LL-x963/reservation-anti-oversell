@@ -26,3 +26,18 @@ export function formatDateTime(value, fallback = '-') {
 
   return String(value).replace('T', ' ').slice(0, 19)
 }
+
+/**
+ * 金额格式化：保留两位小数
+ *
+ * @param {unknown} value 原始值
+ * @param {string} fallback 空值时的占位
+ * @returns {string} 形如 99.00
+ */
+export function formatAmount(value, fallback = '-') {
+  if (value === null || value === undefined || value === '') {
+    return fallback
+  }
+  const amount = Number(value)
+  return Number.isFinite(amount) ? amount.toFixed(2) : String(value)
+}
