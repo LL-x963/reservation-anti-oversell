@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.pethome.mapper.StatMapper">
+
+    <!-- 已完成的订单状态集合（由 OrderStatus.finishedCodes() 传入，口径唯一） -->
+    <sql id="finishedStatusIn">
+        o.status IN
+        <foreach collection="statuses" item="status" open="(" separator="," close=")">#{status}</foreach>
+    </sql>
+
+    <sql id="finishedStatusInRaw">
+        status IN
+        <foreach collection="statuses" item="status" open="(" separator="," close=")">#{status}</foreach>
+    </sql>
+
+    <!-- 按自然日统计营业额 -->
+    <select id="selectRevenueByDay" resultType="com.pethome.vo.StatRevenueItemVO">
+        SELECT DATE(pay_time) AS statDate,
+               IFNULL(SUM(total_amount), 0) AS amount
+        FROM service_order
+        WHERE
+        <include refid="finishedStatusInRaw"/>
+        AND pay_time IS NOT NULL
+        AND pay_time &gt;= #{start}
+        AND pay_time &lt; #{end}
+        GROUP BY DATE(pay_time)
+        ORDER BY statDate
+    </select>
+
+    <!-- 服务销量排行：销量降序，名称优先取服务当前名称，服务已删除时回退下单快照 -->
+    <select id="selectServiceRank" resultType="com.pethome.vo.ServiceRankVO">
+        SELECT od.service_id AS serviceId,
+               COALESCE(MAX(si.name), MAX(od.name)) AS name,
+               SUM(od.quantity) AS sales,
+               SUM(od.amount) AS amount
+        FROM order_detail od
+        INNER JOIN service_order o ON o.id = od.order_id
+        LEFT JOIN service_item si ON si.id = od.service_id
+        WHERE
+        <include refid="finishedStatusIn"/>
+        GROUP BY od.service_id
+        ORDER BY sales DESC, od.service_id ASC
+        LIMIT #{limit}
+    </select>
+
+    <!-- 全部服务总销量（占比分母） -->
+    <select id="selectTotalSales" resultType="java.math.BigDecimal">
+        SELECT IFNULL(SUM(od.quantity), 0)
+        FROM order_detail od
+        INNER JOIN service_order o ON o.id = od.order_id
+        WHERE
+        <include refid="finishedStatusIn"/>
+    </select>
+
+    <!-- 美容师业绩排行：营业额降序 -->
+    <select id="selectBeauticianRank" resultType="com.pethome.vo.BeauticianRankVO">
+        SELECT o.beautician_id AS beauticianId,
+               MAX(b.name) AS name,
+               COUNT(1) AS orderCount,
+               IFNULL(SUM(o.total_amount), 0) AS amount,
+               MAX(b.score) AS score
+        FROM service_order o
+        LEFT JOIN beautician b ON b.id = o.beautician_id
+        WHERE
+        <include refid="finishedStatusIn"/>
+        AND o.beautician_id IS NOT NULL
+        GROUP BY o.beautician_id
+        ORDER BY amount DESC, o.beautician_id ASC
+    </select>
+
+    <!-- 用户复购统计 -->
+    <select id="selectRepurchase" resultType="com.pethome.vo.RepurchaseVO">
+        SELECT COUNT(1) AS totalUsers,
+               IFNULL(SUM(CASE WHEN t.cnt >= 2 THEN 1 ELSE 0 END), 0) AS repeatUsers
+        FROM (
+            SELECT user_id, COUNT(1) AS cnt
+            FROM service_order
+            WHERE
+            <include refid="finishedStatusInRaw"/>
+            GROUP BY user_id
+        ) t
+    </select>
+
+</mapper>

@@ -55,6 +55,13 @@ public enum OrderStatus {
     }
 
     /**
+     * 统计口径的「已完成」状态集合：服务已完成（含待评价）
+     */
+    public static java.util.List<Integer> finishedCodes() {
+        return java.util.List.of(COMPLETED.code, PENDING_COMMENT.code);
+    }
+
+    /**
      * 状态描述，未知状态返回 null
      */
     public static String descOf(Integer code) {
