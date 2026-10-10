@@ -3,8 +3,12 @@ package com.pethome.util;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
+import org.springframework.util.CollectionUtils;
 
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -113,6 +117,83 @@ public class RedisUtil {
      */
     public boolean setIfAbsent(String key, Object value, long timeout, TimeUnit unit) {
         return Boolean.TRUE.equals(redisTemplate.opsForValue().setIfAbsent(key, value, timeout, unit));
+    }
+
+    // ==================== Hash 操作 ====================
+
+    /**
+     * Hash 写入单个字段
+     */
+    public void hSet(String key, String field, Object value) {
+        redisTemplate.opsForHash().put(key, field, value);
+    }
+
+    /**
+     * Hash 批量写入
+     */
+    public void hSetAll(String key, Map<String, Object> map) {
+        if (CollectionUtils.isEmpty(map)) {
+            return;
+        }
+        redisTemplate.opsForHash().putAll(key, map);
+    }
+
+    /**
+     * Hash 读取单个字段
+     */
+    public Object hGet(String key, String field) {
+        return key == null ? null : redisTemplate.opsForHash().get(key, field);
+    }
+
+    /**
+     * Hash 是否存在指定字段
+     */
+    public boolean hHasKey(String key, String field) {
+        return key != null && Boolean.TRUE.equals(redisTemplate.opsForHash().hasKey(key, field));
+    }
+
+    /**
+     * Hash 删除字段（hash 为空时 Redis 会自动删除该 key）
+     *
+     * @return 实际删除的字段数量
+     */
+    public long hDelete(String key, Object... fields) {
+        if (key == null || fields == null || fields.length == 0) {
+            return 0L;
+        }
+        Long count = redisTemplate.opsForHash().delete(key, fields);
+        return count == null ? 0L : count;
+    }
+
+    /**
+     * Hash 全部字段名
+     */
+    public Set<Object> hKeys(String key) {
+        if (key == null) {
+            return Collections.emptySet();
+        }
+        return redisTemplate.opsForHash().keys(key);
+    }
+
+    /**
+     * Hash 字段数量
+     */
+    public long hSize(String key) {
+        if (key == null) {
+            return 0L;
+        }
+        Long size = redisTemplate.opsForHash().size(key);
+        return size == null ? 0L : size;
+    }
+
+    /**
+     * Hash 读取全部字段
+     */
+    public Map<Object, Object> hGetAll(String key) {
+        if (key == null) {
+            return Collections.emptyMap();
+        }
+        return redisTemplate.opsForHash().entries(key);
     }
 
 }

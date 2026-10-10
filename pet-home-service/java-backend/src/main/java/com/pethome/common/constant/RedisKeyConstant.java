@@ -28,4 +28,16 @@ public final class RedisKeyConstant {
         return LOGIN_TOKEN_PREFIX + userType.getCode() + ":" + userId;
     }
 
+    /** 预约车 Hash key 前缀，完整形如 cart:100 */
+    public static final String CART_PREFIX = "cart:";
+
+    /**
+     * 构建预约车 Hash key
+     *
+     * @param userId 用户 id
+     */
+    public static String cartKey(Long userId) {
+        return CART_PREFIX + userId;
+    }
+
 }
