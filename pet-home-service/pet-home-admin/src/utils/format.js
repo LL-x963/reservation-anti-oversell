@@ -59,6 +59,22 @@ export function formatDecimal(value, digits = 2, fallback = '-') {
 }
 
 /**
+ * 比率格式化：后端占比 / 复购率等以 0~1 存储，展示时换算成百分比
+ *
+ * @param {unknown} value 0~1 的比率
+ * @param {number} digits 小数位数
+ * @param {string} fallback 空值时的占位
+ * @returns {string} 形如 33.33%
+ */
+export function formatPercent(value, digits = 2, fallback = '-') {
+  if (value === null || value === undefined || value === '') {
+    return fallback
+  }
+  const number = Number(value)
+  return Number.isFinite(number) ? `${(number * 100).toFixed(digits)}%` : fallback
+}
+
+/**
  * 今天日期（yyyy-MM-dd），用于日期选择器默认值（与后端 LocalDate 格式一致）
  */
 export function todayString() {
