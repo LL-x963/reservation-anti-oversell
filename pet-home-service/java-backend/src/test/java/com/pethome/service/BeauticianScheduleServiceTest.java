@@ -4,7 +4,6 @@ import com.pethome.common.enums.TimeSlot;
 import com.pethome.common.exception.BusinessException;
 import com.pethome.dto.ScheduleBatchSetRequest;
 import com.pethome.dto.ScheduleListQuery;
-import com.pethome.entity.BeauticianSchedule;
 import com.pethome.vo.ScheduleBatchSetVO;
 import com.pethome.vo.ScheduleVO;
 import org.junit.jupiter.api.BeforeEach;
