@@ -294,7 +294,7 @@ class OrderApiTest {
         assertThat(putJson("/api/user/order/cancel/" + orderId, Map.of(), tokenA).getBody().getInteger("code"))
                 .isZero();
 
-        // 已完成的订单不能取消
+        // 已完成的订单（状态 5）不能取消
         Long completedOrderId = completeAndComment(SLOT_12_14, 5);
         JSONObject canceled = putJson("/api/user/order/cancel/" + completedOrderId, Map.of(), tokenA).getBody();
         assertThat(canceled.getInteger("code")).isZero();
