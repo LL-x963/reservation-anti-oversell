@@ -1,14 +1,18 @@
 package com.pethome.mapper;
 
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.pethome.entity.AddressBook;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
 /**
- * 地址簿 Mapper（当前仅提供下单所需的地址归属校验能力，地址簿模块后续补全）
+ * 地址簿 Mapper
+ *
+ * <p>地址簿模块（C 端增删改查）后续补全；当前提供下单归属校验与订单详情回显所需的按 id 查询能力。</p>
  *
  * @author pet-home
  */
-public interface AddressBookMapper {
+public interface AddressBookMapper extends BaseMapper<AddressBook> {
 
     /**
      * 统计指定用户名下的地址数量

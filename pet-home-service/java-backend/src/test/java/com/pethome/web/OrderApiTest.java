@@ -449,6 +449,32 @@ class OrderApiTest {
     }
 
     @Test
+    void adminPageAndDetailShouldReturnUserNamePetNameAndAddress() {
+        jdbcTemplate.update("UPDATE `user` SET name = ? WHERE id = ?", "IT-订单接口-用户A", userIdA);
+        Long orderId = submitOrder(tokenA, SLOT_10_12, 1).getJSONObject("data").getLong("orderId");
+        createdOrderIds.add(orderId);
+
+        String token = adminToken();
+
+        // 列表：用户名 / 宠物名 / 美容师名均已解析
+        JSONObject row = getJson("/api/admin/order/page?beauticianId=" + beauticianId, token)
+                .getBody().getJSONObject("data").getJSONArray("records").getJSONObject(0);
+        assertThat(row.getLong("id")).isEqualTo(orderId);
+        assertThat(row.getString("userName")).isEqualTo("IT-订单接口-用户A");
+        assertThat(row.getString("petName")).isEqualTo("IT-订单接口-宠物A");
+        assertThat(row.getString("beauticianName")).isEqualTo(BEAUTICIAN_NAME);
+
+        // 详情：补充收货联系人 / 电话 / 完整地址
+        JSONObject detail = getJson("/api/admin/order/" + orderId, token).getBody().getJSONObject("data");
+        assertThat(detail.getString("userName")).isEqualTo("IT-订单接口-用户A");
+        assertThat(detail.getString("petName")).isEqualTo("IT-订单接口-宠物A");
+        assertThat(detail.getString("consignee")).isEqualTo("IT-收件人");
+        assertThat(detail.getString("consigneePhone")).isEqualTo("13800000000");
+        // 测试地址未填省市区，只拼接详细地址
+        assertThat(detail.getString("address")).isEqualTo("IT-详细地址");
+    }
+
+    @Test
     void adminCancelShouldReleaseSchedule() {
         Long orderId = submitOrder(tokenA, SLOT_10_12, 1).getJSONObject("data").getLong("orderId");
         createdOrderIds.add(orderId);

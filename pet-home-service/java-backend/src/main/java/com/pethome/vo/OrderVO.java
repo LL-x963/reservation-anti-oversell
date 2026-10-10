@@ -24,7 +24,13 @@ public class OrderVO implements Serializable {
 
     private Long userId;
 
+    /** 用户名（优先取姓名，姓名为空时回退手机号） */
+    private String userName;
+
     private Long petId;
+
+    /** 宠物名 */
+    private String petName;
 
     private Long beauticianId;
 

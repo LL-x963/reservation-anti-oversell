@@ -26,9 +26,24 @@ public class OrderDetailVO implements Serializable {
 
     private Long userId;
 
+    /** 用户名（优先取姓名，姓名为空时回退手机号） */
+    private String userName;
+
     private Long addressId;
 
+    /** 收货联系人 */
+    private String consignee;
+
+    /** 收货联系电话 */
+    private String consigneePhone;
+
+    /** 完整收货地址（省市区 + 详细地址，地址已删除时为 null） */
+    private String address;
+
     private Long petId;
+
+    /** 宠物名 */
+    private String petName;
 
     private Long beauticianId;
 

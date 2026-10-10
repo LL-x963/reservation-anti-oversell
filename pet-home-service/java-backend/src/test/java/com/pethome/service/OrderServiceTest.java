@@ -6,18 +6,22 @@ import com.pethome.common.enums.OrderStatus;
 import com.pethome.common.enums.UserType;
 import com.pethome.common.exception.BusinessException;
 import com.pethome.dto.CartAddRequest;
+import com.pethome.dto.OrderAdminPageQuery;
 import com.pethome.dto.OrderAssignRequest;
 import com.pethome.dto.OrderCommentRequest;
 import com.pethome.dto.OrderItemRequest;
 import com.pethome.dto.OrderPageQuery;
 import com.pethome.dto.OrderPayRequest;
 import com.pethome.dto.OrderSubmitRequest;
+import com.pethome.entity.AddressBook;
 import com.pethome.entity.ServiceOrder;
+import com.pethome.mapper.AddressBookMapper;
 import com.pethome.mapper.BeauticianScheduleMapper;
 import com.pethome.mapper.ServiceOrderMapper;
 import com.pethome.util.RedisUtil;
 import com.pethome.vo.OrderDetailVO;
 import com.pethome.vo.OrderSubmitVO;
+import com.pethome.vo.OrderVO;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -63,6 +67,9 @@ class OrderServiceTest {
 
     @Autowired
     private ServiceOrderMapper serviceOrderMapper;
+
+    @Autowired
+    private AddressBookMapper addressBookMapper;
 
     @Autowired
     private RedisUtil redisUtil;
@@ -567,6 +574,81 @@ class OrderServiceTest {
         assertThat(detail.getItems().get(0).getName()).isEqualTo("IT-订单服务A");
         assertThat(detail.getComment()).isNotNull();
         assertThat(detail.getComment().getScore()).isEqualTo(5);
+    }
+
+    // ==================== 管理端查询（用户名 / 宠物名 / 收货信息） ====================
+
+    @Test
+    void adminPageShouldResolveUserNameAndPetName() {
+        jdbcTemplate.update("UPDATE `user` SET name = ?, phone = ? WHERE id = ?", "IT-订单用户A", "13900000001", userId);
+        Long orderId = submit();
+
+        OrderAdminPageQuery query = new OrderAdminPageQuery();
+        query.setBeauticianId(beauticianId);
+        List<OrderVO> records = adminOrderService.pageForAdmin(query).getRecords();
+
+        assertThat(records).hasSize(1);
+        OrderVO vo = records.get(0);
+        assertThat(vo.getId()).isEqualTo(orderId);
+        assertThat(vo.getUserName()).isEqualTo("IT-订单用户A");
+        assertThat(vo.getPetName()).isEqualTo("IT-订单宠物A");
+        assertThat(vo.getBeauticianName()).isEqualTo("IT-订单美容师");
+
+        // 详情与列表口径一致
+        OrderDetailVO detail = adminOrderService.detailForAdmin(orderId);
+        assertThat(detail.getUserName()).isEqualTo("IT-订单用户A");
+        assertThat(detail.getPetName()).isEqualTo("IT-订单宠物A");
+    }
+
+    @Test
+    void adminQueryShouldFallbackUserNameToPhone() {
+        // 微信用户可能未完善姓名，回退手机号
+        jdbcTemplate.update("UPDATE `user` SET name = NULL, phone = ? WHERE id = ?", "13900000002", userId);
+        submit();
+
+        OrderAdminPageQuery query = new OrderAdminPageQuery();
+        query.setBeauticianId(beauticianId);
+        assertThat(adminOrderService.pageForAdmin(query).getRecords().get(0).getUserName())
+                .isEqualTo("13900000002");
+    }
+
+    @Test
+    void adminDetailShouldReturnConsigneeAndFullAddress() {
+        Long orderId = submit();
+
+        OrderDetailVO detail = adminOrderService.detailForAdmin(orderId);
+        assertThat(detail.getAddressId()).isEqualTo(addressId);
+        assertThat(detail.getConsignee()).isEqualTo("IT-订单地址A");
+        assertThat(detail.getConsigneePhone()).isEqualTo("13800000000");
+        // 未填省市区时只拼接详细地址
+        assertThat(detail.getAddress()).isEqualTo("IT-详细地址");
+
+        // 补齐省市区后按「省 + 市 + 区 + 详细地址」拼接
+        // 注意：必须走 MyBatis 更新（同一 SqlSession 会清理一级缓存），
+        // 用 jdbcTemplate 旁路更新会导致随后 selectById 命中旧的一级缓存
+        AddressBook withRegion = new AddressBook();
+        withRegion.setId(addressId);
+        withRegion.setProvinceName("浙江省");
+        withRegion.setCityName("杭州市");
+        withRegion.setDistrictName("西湖区");
+        addressBookMapper.updateById(withRegion);
+        assertThat(adminOrderService.detailForAdmin(orderId).getAddress())
+                .isEqualTo("浙江省杭州市西湖区IT-详细地址");
+    }
+
+    @Test
+    void adminDetailShouldTolerateDeletedAddress() {
+        Long orderId = submit();
+        jdbcTemplate.update("DELETE FROM address_book WHERE id = ?", addressId);
+
+        OrderDetailVO detail = adminOrderService.detailForAdmin(orderId);
+
+        // 地址被删除时不抛异常：收货字段留空，其余信息照常返回
+        assertThat(detail.getConsignee()).isNull();
+        assertThat(detail.getConsigneePhone()).isNull();
+        assertThat(detail.getAddress()).isNull();
+        assertThat(detail.getOrderNumber()).isNotBlank();
+        assertThat(detail.getItems()).hasSize(1);
     }
 
     // ==================== 辅助方法 ====================

@@ -19,6 +19,7 @@ import com.pethome.dto.OrderItemRequest;
 import com.pethome.dto.OrderPageQuery;
 import com.pethome.dto.OrderPayRequest;
 import com.pethome.dto.OrderSubmitRequest;
+import com.pethome.entity.AddressBook;
 import com.pethome.entity.Beautician;
 import com.pethome.entity.BeauticianSchedule;
 import com.pethome.entity.OrderComment;
@@ -26,6 +27,7 @@ import com.pethome.entity.OrderDetail;
 import com.pethome.entity.PetProfile;
 import com.pethome.entity.ServiceItem;
 import com.pethome.entity.ServiceOrder;
+import com.pethome.entity.User;
 import com.pethome.mapper.AddressBookMapper;
 import com.pethome.mapper.BeauticianScheduleMapper;
 import com.pethome.mapper.OrderCommentMapper;
@@ -39,6 +41,7 @@ import com.pethome.service.CartService;
 import com.pethome.service.OrderService;
 import com.pethome.service.PetProfileService;
 import com.pethome.service.ServiceItemService;
+import com.pethome.service.UserService;
 import com.pethome.util.OrderNumberGenerator;
 import com.pethome.util.RedisUtil;
 import com.pethome.vo.OrderCommentVO;
@@ -54,12 +57,14 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.CollectionUtils;
+import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -106,6 +111,7 @@ public class OrderServiceImpl extends ServiceImpl<ServiceOrderMapper, ServiceOrd
     private final MqMessageSender mqMessageSender;
     private final RedisUtil redisUtil;
     private final OrderProperties orderProperties;
+    private final UserService userService;
 
     // ==================== 提交预约 ====================
 
@@ -512,20 +518,35 @@ public class OrderServiceImpl extends ServiceImpl<ServiceOrderMapper, ServiceOrd
     }
 
     private IPage<OrderVO> toVOPage(Page<ServiceOrder> page) {
-        Map<Long, String> beauticianNames = getNameMap(page.getRecords().stream()
+        List<ServiceOrder> records = page.getRecords();
+        // 美容师 / 宠物 / 用户名称统一批量查询，避免 N+1
+        Map<Long, String> beauticianNames = getNameMap(records.stream()
                 .map(ServiceOrder::getBeauticianId)
                 .filter(Objects::nonNull)
                 .distinct()
                 .collect(Collectors.toList()));
-        return page.convert(order -> toVO(order, beauticianNames));
+        Map<Long, String> petNames = getPetNameMap(records.stream()
+                .map(ServiceOrder::getPetId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList()));
+        Map<Long, String> userNames = getUserNameMap(records.stream()
+                .map(ServiceOrder::getUserId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList()));
+        return page.convert(order -> toVO(order, beauticianNames, petNames, userNames));
     }
 
-    private OrderVO toVO(ServiceOrder order, Map<Long, String> beauticianNames) {
+    private OrderVO toVO(ServiceOrder order, Map<Long, String> beauticianNames,
+                         Map<Long, String> petNames, Map<Long, String> userNames) {
         OrderVO vo = new OrderVO();
         vo.setId(order.getId());
         vo.setOrderNumber(order.getOrderNumber());
         vo.setUserId(order.getUserId());
+        vo.setUserName(order.getUserId() == null ? null : userNames.get(order.getUserId()));
         vo.setPetId(order.getPetId());
+        vo.setPetName(order.getPetId() == null ? null : petNames.get(order.getPetId()));
         vo.setBeauticianId(order.getBeauticianId());
         vo.setBeauticianName(order.getBeauticianId() == null ? null : beauticianNames.get(order.getBeauticianId()));
         vo.setAppointmentDate(order.getAppointmentDate());
@@ -545,6 +566,8 @@ public class OrderServiceImpl extends ServiceImpl<ServiceOrderMapper, ServiceOrd
             Beautician beautician = beauticianService.getById(order.getBeauticianId());
             vo.setBeauticianName(beautician == null ? null : beautician.getName());
         }
+        fillUserAndPet(vo, order);
+        fillAddress(vo, order.getAddressId());
 
         vo.setItems(orderDetailMapper.selectList(new LambdaQueryWrapper<OrderDetail>()
                         .eq(OrderDetail::getOrderId, order.getId()))
@@ -580,6 +603,89 @@ public class OrderServiceImpl extends ServiceImpl<ServiceOrderMapper, ServiceOrd
         }
         return beauticianService.listByIds(beauticianIds).stream()
                 .collect(Collectors.toMap(Beautician::getId, Beautician::getName, (a, b) -> a));
+    }
+
+    /**
+     * 宠物名映射（批量查询；名称为空时按 null 处理，不做过滤）
+     */
+    private Map<Long, String> getPetNameMap(List<Long> petIds) {
+        Map<Long, String> names = new HashMap<>();
+        if (CollectionUtils.isEmpty(petIds)) {
+            return names;
+        }
+        petProfileService.listByIds(petIds).forEach(pet -> names.put(pet.getId(), pet.getName()));
+        return names;
+    }
+
+    /**
+     * 用户名映射（批量查询）
+     */
+    private Map<Long, String> getUserNameMap(List<Long> userIds) {
+        Map<Long, String> names = new HashMap<>();
+        if (CollectionUtils.isEmpty(userIds)) {
+            return names;
+        }
+        userService.listByIds(userIds).forEach(user -> names.put(user.getId(), displayUserName(user)));
+        return names;
+    }
+
+    /**
+     * 用户展示名：优先姓名，姓名为空（微信用户未完善资料）时回退手机号
+     */
+    private String displayUserName(User user) {
+        if (user == null) {
+            return null;
+        }
+        return StringUtils.hasText(user.getName()) ? user.getName().trim() : user.getPhone();
+    }
+
+    /**
+     * 详情填充用户名与宠物名（与列表口径保持一致）
+     */
+    private void fillUserAndPet(OrderDetailVO vo, ServiceOrder order) {
+        if (order.getUserId() != null) {
+            vo.setUserName(displayUserName(userService.getById(order.getUserId())));
+        }
+        if (order.getPetId() != null) {
+            PetProfile pet = petProfileService.getById(order.getPetId());
+            vo.setPetName(pet == null ? null : pet.getName());
+        }
+    }
+
+    /**
+     * 详情填充收货信息
+     *
+     * <p>地址被删除时静默跳过，保证历史订单详情仍可正常查看。</p>
+     */
+    private void fillAddress(OrderDetailVO vo, Long addressId) {
+        if (addressId == null) {
+            return;
+        }
+        AddressBook address = addressBookMapper.selectById(addressId);
+        if (address == null) {
+            return;
+        }
+        vo.setConsignee(address.getConsignee());
+        vo.setConsigneePhone(address.getPhone());
+        vo.setAddress(joinFullAddress(address));
+    }
+
+    /**
+     * 拼接完整地址（省 / 市 / 区为空时自动跳过，仅拼接详细地址）
+     */
+    private String joinFullAddress(AddressBook address) {
+        StringBuilder builder = new StringBuilder();
+        appendAddressPart(builder, address.getProvinceName());
+        appendAddressPart(builder, address.getCityName());
+        appendAddressPart(builder, address.getDistrictName());
+        appendAddressPart(builder, address.getDetail());
+        return builder.isEmpty() ? null : builder.toString();
+    }
+
+    private void appendAddressPart(StringBuilder builder, String part) {
+        if (StringUtils.hasText(part)) {
+            builder.append(part.trim());
+        }
     }
 
     /**
