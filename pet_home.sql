@@ -321,10 +321,10 @@ SET FOREIGN_KEY_CHECKS = 1;
 -- ============================================================
 -- 初始化管理员账号
 -- 用户名：admin
--- 密码：123456（加密存储，此处使用 MD5，实际项目建议 BCrypt）
+-- 密码：123456（BCrypt 加密存储，与 EmployeeServiceImpl 的 BCryptPasswordEncoder 校验保持一致）
 -- ============================================================
 INSERT INTO `employee` (`username`, `password`, `name`, `phone`, `sex`, `status`, `create_time`, `update_time`)
-VALUES ('admin', MD5('123456'), '超级管理员', '13800000000', 1, 1, NOW(), NOW());
+VALUES ('admin', '$2a$10$l1VUQ2bO.T167NU6Vb7zhOnYtaWA8qMxiPnACixVJvQYTOi.bqohe', '超级管理员', '13800000000', 1, 1, NOW(), NOW());
 
 -- ============================================================
 -- 说明：
