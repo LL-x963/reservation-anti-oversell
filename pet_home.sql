@@ -307,6 +307,7 @@ CREATE TABLE `knowledge_doc` (
   `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_title` (`title`),
   KEY `idx_enabled` (`enabled`),
   KEY `idx_category` (`category`),
   KEY `idx_index_status` (`index_status`)
