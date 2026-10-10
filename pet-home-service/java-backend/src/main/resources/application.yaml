@@ -81,6 +81,20 @@ pethome:
   order:
     # 待支付超时自动取消延迟（毫秒），默认 30 分钟
     cancel-delay-millis: 1800000
+  knowledge:
+    # RAG 知识库问答服务地址（pet-home-service/rag-service）
+    base-url: http://localhost:8000
+    # 与 rag-service 的 RAG_API_KEY 保持一致，通过请求头 X-API-Key 传递
+    api-key: ${PETHOME_RAG_API_KEY:pethome-rag-key}
+    api-key-header: X-API-Key
+    # 连接超时（需求：3 秒）
+    connect-timeout: 3s
+    # 问答读取超时（本地 1.5B 模型推理通常 2-10 秒，留足余量）
+    read-timeout: 30s
+    # 重建索引读取超时（需向量化全部文档，明显长于问答）
+    reindex-read-timeout: 5m
+    # 调用失败重试次数（不含首次调用）
+    max-retries: 1
   upload:
     # 本地文件存储目录（相对服务启动目录），WebMvcConfig 会将其映射为静态资源
     base-dir: ./upload

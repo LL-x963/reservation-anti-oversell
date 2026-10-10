@@ -3,15 +3,19 @@ package com.pethome.service;
 import com.pethome.common.enums.IndexStatus;
 import com.pethome.common.exception.BusinessException;
 import com.pethome.dto.KnowledgeDocAddRequest;
+import com.pethome.rag.RagIndexClient;
 import com.pethome.vo.KnowledgeIndexStatusVO;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 
 /**
  * 知识库索引重建（异步链路）测试
@@ -33,6 +37,10 @@ class KnowledgeIndexRebuildTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    /** RAG 索引客户端用 Mock 替换，避免测试依赖真实 rag-service */
+    @MockitoBean
+    private RagIndexClient ragIndexClient;
+
     @AfterEach
     void tearDown() {
         jdbcTemplate.update("DELETE FROM knowledge_doc WHERE title LIKE ?", TITLE_PREFIX + "%");
@@ -46,6 +54,8 @@ class KnowledgeIndexRebuildTest {
         knowledgeDocService.updateStatus(disabledId, 0);
 
         assertThat(knowledgeDocService.indexStatus().getRebuilding()).isFalse();
+        // RAG 侧按成功处理，最终应置为 2正常
+        when(ragIndexClient.rebuildIndex(any())).thenReturn(true);
 
         knowledgeDocService.rebuildIndex();
 

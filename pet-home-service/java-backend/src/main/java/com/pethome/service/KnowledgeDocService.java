@@ -10,6 +10,8 @@ import com.pethome.vo.KnowledgeDocDetailVO;
 import com.pethome.vo.KnowledgeDocVO;
 import com.pethome.vo.KnowledgeIndexStatusVO;
 
+import java.util.List;
+
 /**
  * 知识库文档服务
  *
@@ -50,6 +52,13 @@ public interface KnowledgeDocService extends IService<KnowledgeDoc> {
      * 删除文档
      */
     void delete(Long id);
+
+    /**
+     * 查询可检索的文档 id 列表（enabled=1 且 index_status=2正常）
+     *
+     * <p>供知识库问答组装 enabledDocIds 使用：只有启用且索引正常的文档才参与检索。</p>
+     */
+    List<Long> listIndexedDocIds();
 
     /**
      * 索引状态概览

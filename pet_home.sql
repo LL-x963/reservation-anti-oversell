@@ -284,12 +284,15 @@ DROP TABLE IF EXISTS `ai_conversation`;
 CREATE TABLE `ai_conversation` (
   `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
   `user_id` BIGINT NOT NULL COMMENT '用户ID',
+  `pet_id` BIGINT DEFAULT NULL COMMENT '关联宠物ID',
   `question` TEXT NOT NULL COMMENT '问题',
   `answer` TEXT NOT NULL COMMENT '答案',
+  `references` TEXT COMMENT '参考来源JSON（docId/title/content 数组）',
   `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '提问时间',
   `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`),
   KEY `idx_user_id` (`user_id`),
+  KEY `idx_pet_id` (`pet_id`),
   KEY `idx_create_time` (`create_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI问答历史表';
 

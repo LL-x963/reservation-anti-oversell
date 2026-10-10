@@ -165,6 +165,19 @@ public class KnowledgeDocServiceImpl extends ServiceImpl<KnowledgeDocMapper, Kno
     }
 
     @Override
+    public List<Long> listIndexedDocIds() {
+        return lambdaQuery()
+                .select(KnowledgeDoc::getId)
+                .eq(KnowledgeDoc::getEnabled, ENABLED)
+                .eq(KnowledgeDoc::getIndexStatus, IndexStatus.NORMAL.getCode())
+                .orderByAsc(KnowledgeDoc::getId)
+                .list()
+                .stream()
+                .map(KnowledgeDoc::getId)
+                .toList();
+    }
+
+    @Override
     public void rebuildIndex() {
         // 防重：存在“索引中”的文档说明上一次重建尚未结束
         if (countByIndexStatus(IndexStatus.INDEXING.getCode()) > 0) {

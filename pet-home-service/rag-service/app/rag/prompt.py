@@ -35,6 +35,7 @@ HUMAN_TEMPLATE = "【知识库内容】\n{context}\n\n【用户问题】\n{quest
 PET_FIELD_LABELS = {
     "breed": "品种",
     "age": "年龄",
+    "ageMonths": "月龄",
     "weight": "体重",
     "gender": "性别",
     "name": "名字",

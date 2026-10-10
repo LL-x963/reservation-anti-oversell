@@ -6,6 +6,7 @@ import com.pethome.common.constant.RedisKeyConstant;
 import com.pethome.common.enums.UserType;
 import com.pethome.entity.Employee;
 import com.pethome.mapper.EmployeeMapper;
+import com.pethome.rag.RagIndexClient;
 import com.pethome.util.RedisUtil;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -19,11 +20,14 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 
 /**
  * 知识库文档管理接口集成测试（/api/admin/knowledge/doc）
@@ -56,6 +60,10 @@ class KnowledgeDocApiTest {
 
     @Autowired
     private RedisUtil redisUtil;
+
+    /** RAG 索引客户端用 Mock 替换，避免测试依赖真实 rag-service */
+    @MockitoBean
+    private RagIndexClient ragIndexClient;
 
     private Employee employee;
     private Long userId;
@@ -158,7 +166,8 @@ class KnowledgeDocApiTest {
         // 重新启用
         assertThat(putJson(BASE + "/status", Map.of("id", id, "enabled", 1), token).getInteger("code")).isEqualTo(1);
 
-        // 重建索引：异步执行，立即返回
+        // 重建索引：异步执行，立即返回（RAG 索引客户端为 Mock，按成功处理）
+        when(ragIndexClient.rebuildIndex(any())).thenReturn(true);
         assertThat(postJson(BASE + "/reindex", Map.of(), token).getInteger("code")).isEqualTo(1);
         JSONObject indexStatus = awaitRebuildFinished(token);
         assertThat(indexStatus.getBoolean("rebuilding")).isFalse();
