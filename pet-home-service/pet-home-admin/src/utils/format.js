@@ -57,3 +57,12 @@ export function formatDecimal(value, digits = 2, fallback = '-') {
   const number = Number(value)
   return Number.isFinite(number) ? number.toFixed(digits) : String(value)
 }
+
+/**
+ * 今天日期（yyyy-MM-dd），用于日期选择器默认值（与后端 LocalDate 格式一致）
+ */
+export function todayString() {
+  const now = new Date()
+  const pad = (num) => String(num).padStart(2, '0')
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+}
