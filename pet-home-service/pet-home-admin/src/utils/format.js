@@ -41,3 +41,19 @@ export function formatAmount(value, fallback = '-') {
   const amount = Number(value)
   return Number.isFinite(amount) ? amount.toFixed(2) : String(value)
 }
+
+/**
+ * 数字格式化：固定小数位（如评分保留 1 位小数）
+ *
+ * @param {unknown} value 原始值
+ * @param {number} digits 小数位数
+ * @param {string} fallback 空值时的占位
+ * @returns {string} 形如 4.8
+ */
+export function formatDecimal(value, digits = 2, fallback = '-') {
+  if (value === null || value === undefined || value === '') {
+    return fallback
+  }
+  const number = Number(value)
+  return Number.isFinite(number) ? number.toFixed(digits) : String(value)
+}
