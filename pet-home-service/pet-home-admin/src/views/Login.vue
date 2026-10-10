@@ -3,7 +3,9 @@ import { reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 
+import { login as loginApi } from '@/api/auth'
 import { useUserStore } from '@/stores/user'
+import { setAdminName, setToken } from '@/utils/auth'
 
 const route = useRoute()
 const router = useRouter()
@@ -17,41 +19,48 @@ const form = reactive({
   password: ''
 })
 
+// 表单校验：用户名、密码必填
 const rules = {
-  username: [{ required: true, message: '请输入账号', trigger: 'blur' }],
-  password: [
-    { required: true, message: '请输入密码', trigger: 'blur' },
-    { min: 6, max: 32, message: '密码长度为 6-32 位', trigger: 'blur' }
-  ]
+  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
+  password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
 }
 
 /**
- * 登录：调用 POST /api/admin/login，成功后写入 token 并跳转
+ * 登录：POST /api/admin/employee/login
  */
 async function handleLogin() {
   if (!formRef.value) {
     return
   }
 
-  try {
-    await formRef.value.validate()
-  } catch {
-    // 表单校验未通过
+  // 校验未通过则中断（validate 失败会 reject）
+  const valid = await formRef.value.validate().catch(() => false)
+  if (!valid) {
     return
   }
 
   loading.value = true
   try {
-    await userStore.login({ username: form.username.trim(), password: form.password })
+    const data = await loginApi({
+      username: form.username.trim(),
+      password: form.password
+    })
+
+    // token 存 localStorage（key = admin_token），姓名存 localStorage（key = admin_name）
+    setToken(data.token)
+    if (data.name) {
+      setAdminName(data.name)
+    }
+    // 同步 Pinia，顶部导航栏可立即显示姓名
+    userStore.setAuth(data.token, data.name)
+
     ElMessage.success('登录成功')
 
-    // 预取管理员信息，进入布局后顶部即可显示姓名
-    userStore.loadProfile().catch(() => {})
-
+    // 有 redirect 参数时优先回跳原页面，否则进入首页
     const redirect = route.query.redirect
-    router.replace(typeof redirect === 'string' && redirect ? redirect : '/')
+    await router.replace(typeof redirect === 'string' && redirect ? redirect : '/dashboard')
   } catch (error) {
-    // 具体提示已由 request 拦截器统一弹出，这里只需结束 loading
+    // 失败提示由 utils/request.js 统一弹出（code=0 弹 msg、网络异常弹网络错误）
   } finally {
     loading.value = false
   }
@@ -63,8 +72,7 @@ async function handleLogin() {
     <el-card class="login-card" shadow="always">
       <div class="login-header">
         <img src="/favicon.svg" alt="logo" class="login-logo" />
-        <div class="login-title">宠享到家管理后台</div>
-        <div class="login-subtitle">宠物上门服务平台 · 运营管理系统</div>
+        <h2 class="login-title">宠享到家管理后台</h2>
       </div>
 
       <el-form
@@ -75,8 +83,8 @@ async function handleLogin() {
         label-position="top"
         @keyup.enter="handleLogin"
       >
-        <el-form-item label="账号" prop="username">
-          <el-input v-model="form.username" placeholder="请输入管理员账号" clearable>
+        <el-form-item label="用户名" prop="username">
+          <el-input v-model="form.username" placeholder="请输入用户名" clearable>
             <template #prefix>
               <el-icon><User /></el-icon>
             </template>
@@ -104,13 +112,7 @@ async function handleLogin() {
         </el-form-item>
       </el-form>
 
-      <el-alert
-        type="info"
-        :closable="false"
-        show-icon
-        title="默认账号：admin / 123456"
-        description="需先启动后端 java-backend（http://localhost:8080）"
-      />
+      <div class="login-footer">默认账号：admin / 123456</div>
     </el-card>
   </div>
 </template>
@@ -121,7 +123,7 @@ async function handleLogin() {
   align-items: center;
   justify-content: center;
   height: 100%;
-  background: linear-gradient(135deg, #e0f2ff 0%, #f5f7fa 60%, #eef6ff 100%);
+  background: linear-gradient(135deg, #e0f2ff 0%, #f5f7fa 55%, #eef6ff 100%);
 }
 
 .login-card {
@@ -131,8 +133,8 @@ async function handleLogin() {
 }
 
 .login-header {
+  margin-bottom: 20px;
   text-align: center;
-  margin-bottom: 18px;
 }
 
 .login-logo {
@@ -141,19 +143,20 @@ async function handleLogin() {
 }
 
 .login-title {
-  margin-top: 8px;
+  margin: 10px 0 0;
   font-size: 20px;
   font-weight: 600;
   color: #303133;
 }
 
-.login-subtitle {
-  margin-top: 4px;
-  font-size: 13px;
-  color: #909399;
-}
-
 .login-button {
   width: 100%;
+}
+
+.login-footer {
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: #a8abb2;
+  text-align: center;
 }
 </style>

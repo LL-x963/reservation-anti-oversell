@@ -26,10 +26,12 @@ import java.nio.file.Paths;
 @RequiredArgsConstructor
 public class WebMvcConfig implements WebMvcConfigurer {
 
-    /** 放行路径：登录接口、错误页、静态资源 */
+    /** 放行路径：登录接口（含别名）、错误页、静态资源 */
     private static final String[] EXCLUDE_PATHS = {
             "/api/user/login",
             "/api/admin/login",
+            // 管理后台登录页使用的别名路径
+            "/api/admin/employee/login",
             "/error",
             "/favicon.ico",
             "/static/**",

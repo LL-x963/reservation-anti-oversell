@@ -6,11 +6,13 @@ import request from '@/utils/request'
 /**
  * 员工账号密码登录
  *
+ * 路径 /api/admin/employee/login（后端同时提供 /api/admin/login 别名）
+ *
  * @param {{ username: string, password: string }} data
- * @returns {Promise<{ token: string, userId: number, userType: number, expireSeconds: number }>}
+ * @returns {Promise<{ token: string, name: string, userId: number, userType: number, expireSeconds: number }>}
  */
 export function login(data) {
-  return request.post('/admin/login', data)
+  return request.post('/admin/employee/login', data)
 }
 
 /**

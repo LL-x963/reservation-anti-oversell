@@ -42,7 +42,7 @@ public class EmployeeServiceImpl extends ServiceImpl<EmployeeMapper, Employee> i
         if (!Integer.valueOf(STATUS_ENABLED).equals(employee.getStatus())) {
             throw new BusinessException("账号已被禁用，请联系管理员");
         }
-        return tokenService.issue(employee.getId(), UserType.EMPLOYEE);
+        return tokenService.issue(employee.getId(), UserType.EMPLOYEE, employee.getName());
     }
 
     @Override

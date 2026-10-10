@@ -28,13 +28,15 @@ public class TokenService {
 
     /**
      * 签发 token 并写入 Redis 白名单，有效期与 JWT 保持一致
+     *
+     * @param name 登录人姓名，随登录响应一并返回给前端
      */
-    public LoginVO issue(Long userId, UserType userType) {
+    public LoginVO issue(Long userId, UserType userType, String name) {
         String token = jwtUtil.generateToken(userId, userType);
         redisUtil.set(RedisKeyConstant.loginTokenKey(userType, userId), token,
                 jwtProperties.getExpireSeconds(), TimeUnit.SECONDS);
         log.info("签发登录 token: userType={}, userId={}", userType, userId);
-        return new LoginVO(token, userId, userType.getCode(), jwtProperties.getExpireSeconds());
+        return new LoginVO(token, userId, userType.getCode(), jwtProperties.getExpireSeconds(), name);
     }
 
     /**

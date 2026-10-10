@@ -76,6 +76,8 @@ class AdminSeedLoginTest {
         assertThat(body.getInteger("code")).isEqualTo(1);
         JSONObject data = body.getJSONObject("data");
         assertThat(data.getString("token")).isNotBlank();
+        // 登录响应直接带姓名，前端无需再查一次 profile
+        assertThat(data.getString("name")).isEqualTo("超级管理员");
         adminId = data.getLong("userId");
 
         // 用该 token 访问受保护接口（前端登录后立即会调 /api/admin/profile 顶栏展示姓名）
@@ -87,6 +89,31 @@ class AdminSeedLoginTest {
         assertThat(profile.getInteger("code")).isEqualTo(1);
         assertThat(profile.getJSONObject("data").getString("username")).isEqualTo(ADMIN_USERNAME);
         assertThat(profile.getJSONObject("data").getString("name")).isEqualTo("超级管理员");
+    }
+
+    @Test
+    void seedAdminShouldLoginThroughEmployeeLoginAlias() {
+        // 前端登录页使用的是 /api/admin/employee/login，此路径为 /api/admin/login 的别名
+        ResponseEntity<String> response = restTemplate.postForEntity("/api/admin/employee/login",
+                Map.of("username", ADMIN_USERNAME, "password", ADMIN_PASSWORD), String.class);
+
+        JSONObject body = JSON.parseObject(response.getBody());
+        assertThat(body.getInteger("code")).isEqualTo(1);
+        JSONObject data = body.getJSONObject("data");
+        assertThat(data.getString("token")).isNotBlank();
+        assertThat(data.getString("name")).isEqualTo("超级管理员");
+        assertThat(data.getInteger("userType")).isEqualTo(2);
+        adminId = data.getLong("userId");
+    }
+
+    @Test
+    void employeeLoginAliasShouldRejectWrongPassword() {
+        ResponseEntity<String> response = restTemplate.postForEntity("/api/admin/employee/login",
+                Map.of("username", ADMIN_USERNAME, "password", "wrong-password"), String.class);
+
+        JSONObject body = JSON.parseObject(response.getBody());
+        assertThat(body.getInteger("code")).isZero();
+        assertThat(body.getString("msg")).contains("用户名或密码错误");
     }
 
 }

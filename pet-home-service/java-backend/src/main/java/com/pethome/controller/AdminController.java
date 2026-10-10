@@ -28,8 +28,10 @@ public class AdminController {
 
     /**
      * 员工账号密码登录（免登录接口）
+     *
+     * <p>同时兼容两个路径：{@code /api/admin/login} 与 {@code /api/admin/employee/login}。</p>
      */
-    @PostMapping("/login")
+    @PostMapping({"/login", "/employee/login"})
     public Result login(@RequestBody @Valid EmployeeLoginRequest request) {
         return Result.success(employeeService.login(request));
     }

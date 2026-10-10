@@ -1,7 +1,7 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 
-import { clearToken, getToken, redirectToLogin } from './auth'
+import { clearAuth, getToken, redirectToLogin } from './auth'
 
 /** 后端业务成功码（Result.code：1 成功、0 失败） */
 const CODE_SUCCESS = 1
@@ -81,7 +81,7 @@ service.interceptors.response.use(
  * 处理登录态失效：清除 token + 提示 + 跳转登录页
  */
 function handleUnauthorized(message) {
-  clearToken()
+  clearAuth()
   ElMessage.error(message || '登录已失效，请重新登录')
   redirectToLogin()
 }

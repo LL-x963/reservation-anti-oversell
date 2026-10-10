@@ -39,7 +39,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             save(user);
             log.info("openid 首次登录，自动注册用户: userId={}", user.getId());
         }
-        return tokenService.issue(user.getId(), UserType.USER);
+        return tokenService.issue(user.getId(), UserType.USER, user.getName());
     }
 
     @Override

@@ -30,4 +30,7 @@ public class LoginVO implements Serializable {
     /** 有效期（秒） */
     private Long expireSeconds;
 
+    /** 登录人姓名（管理端取员工姓名、C 端取用户姓名），前端登录后可直接展示，无需再查一次 */
+    private String name;
+
 }
