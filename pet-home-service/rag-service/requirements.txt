@@ -1,0 +1,40 @@
+# ============================================================
+# 宠享到家 - RAG 知识库问答服务依赖
+# Python >= 3.10（本机为 3.13）
+#
+# 安装：
+#   python -m venv .venv
+#   .venv\Scripts\activate
+#   pip install -r requirements.txt
+#
+# 国内下载 HuggingFace 模型（bge-small-zh）建议先设置镜像：
+#   $env:HF_ENDPOINT="https://hf-mirror.com"     # PowerShell
+#   set HF_ENDPOINT=https://hf-mirror.com        # CMD
+#
+# 说明：若只需 Ollama 提供向量能力（EMBEDDING_PROVIDER=ollama），
+#      可跳过 sentence-transformers / torch / transformers 三行，依赖体积可减少 2-3GB。
+# ============================================================
+
+# ---------------- Web 框架 ----------------
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.4
+pydantic-settings==2.7.0
+python-dotenv==1.0.1
+
+# ---------------- LangChain ----------------
+langchain==0.3.14
+langchain-core==0.3.29
+langchain-community==0.3.14
+langchain-text-splitters==0.3.5
+langchain-chroma==0.2.2
+langchain-ollama==0.2.3
+# bge-small-zh 本地推理（EMBEDDING_PROVIDER=huggingface 时必需）
+langchain-huggingface==0.1.2
+
+# ---------------- 向量库 ----------------
+chromadb==0.5.23
+
+# ---------------- 本地向量模型（bge-small-zh） ----------------
+# sentence-transformers 会自动带上 torch 与 transformers，故不再单独固定版本
+sentence-transformers==3.3.1
