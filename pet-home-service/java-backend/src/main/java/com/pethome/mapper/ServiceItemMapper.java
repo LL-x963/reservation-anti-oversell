@@ -31,7 +31,7 @@ public interface ServiceItemMapper extends BaseMapper<ServiceItem> {
      */
     @Select("SELECT COUNT(1) FROM order_detail od "
             + "INNER JOIN service_order o ON o.id = od.order_id "
-            + "WHERE od.service_id = #{serviceId} AND o.status IN (0, 1, 2, 3)")
+            + "WHERE od.service_id = #{serviceId} AND o.status IN (1, 2, 3, 4)")
     long countUnfinishedOrderByServiceId(@Param("serviceId") Long serviceId);
 
 }

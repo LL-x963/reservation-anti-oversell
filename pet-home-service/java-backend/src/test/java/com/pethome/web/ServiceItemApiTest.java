@@ -236,7 +236,7 @@ class ServiceItemApiTest {
     void deleteShouldSucceedWhenOnlyFinishedOrderExists() {
         String token = adminToken();
         Long id = addItem(token, catId, ITEM_PREFIX + "只有已完成订单", "99.00", "猫", null, null);
-        insertOrderDetail(id, 4);
+        insertOrderDetail(id, 5);
 
         assertThat(deleteItem(token, id).getInteger("code")).isEqualTo(1);
     }

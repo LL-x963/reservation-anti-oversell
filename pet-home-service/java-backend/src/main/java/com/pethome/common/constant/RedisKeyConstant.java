@@ -40,4 +40,17 @@ public final class RedisKeyConstant {
         return CART_PREFIX + userId;
     }
 
+    /** 催单限流 key 前缀，完整形如 reminder:100:1 */
+    public static final String REMINDER_PREFIX = "reminder:";
+
+    /**
+     * 构建催单限流 key
+     *
+     * @param orderId 订单 id
+     * @param userId  用户 id
+     */
+    public static String reminderKey(Long orderId, Long userId) {
+        return REMINDER_PREFIX + orderId + ":" + userId;
+    }
+
 }

@@ -20,7 +20,7 @@ public interface BeauticianMapper extends BaseMapper<Beautician> {
      * @param beauticianId 美容师 id
      * @return 未完成订单数量
      */
-    @Select("SELECT COUNT(1) FROM service_order WHERE beautician_id = #{beauticianId} AND status IN (0, 1, 2, 3)")
+    @Select("SELECT COUNT(1) FROM service_order WHERE beautician_id = #{beauticianId} AND status IN (1, 2, 3, 4)")
     long countUnfinishedOrderByBeauticianId(@Param("beauticianId") Long beauticianId);
 
 }

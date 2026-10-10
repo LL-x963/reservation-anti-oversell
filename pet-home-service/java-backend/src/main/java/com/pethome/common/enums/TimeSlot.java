@@ -2,6 +2,7 @@ package com.pethome.common.enums;
 
 import lombok.Getter;
 
+import java.time.LocalTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -46,6 +47,20 @@ public enum TimeSlot {
      */
     public static boolean isValid(String value) {
         return of(value).isPresent();
+    }
+
+    /**
+     * 时段开始时间，如 10:00-12:00 → 10:00
+     */
+    public LocalTime startTime() {
+        return LocalTime.parse(value.substring(0, value.indexOf('-')));
+    }
+
+    /**
+     * 取指定时段字面值的开始时间
+     */
+    public static LocalTime startTimeOf(String value) {
+        return of(value).orElseThrow(() -> new IllegalArgumentException("非法时段: " + value)).startTime();
     }
 
     /**

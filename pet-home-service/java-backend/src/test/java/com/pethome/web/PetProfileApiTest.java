@@ -211,7 +211,7 @@ class PetProfileApiTest {
     void deleteShouldSucceedWhenOnlyFinishedOrderExists() {
         String token = tokenFor(OPENID_A);
         Long petId = addPet(token, PET_PREFIX + "只有已完成订单", null, null, null, null);
-        insertOrder(petId, 4);
+        insertOrder(petId, 5);
 
         assertThat(deletePet(token, petId).getInteger("code")).isEqualTo(1);
     }

@@ -204,7 +204,7 @@ class ServiceItemServiceTest {
 
     @Test
     void deleteShouldRejectWhenUnfinishedOrderExists() {
-        for (int orderStatus : new int[]{0, 1, 2, 3}) {
+        for (int orderStatus : new int[]{1, 2, 3, 4}) {
             Long id = addItem(catAId, ITEM_NAME + orderStatus, "99.00", "猫", null, 1);
             insertOrderDetail(id, orderStatus);
 
@@ -217,7 +217,7 @@ class ServiceItemServiceTest {
 
     @Test
     void deleteShouldAllowWhenOnlyFinishedOrderExists() {
-        for (int orderStatus : new int[]{4, 5, 6}) {
+        for (int orderStatus : new int[]{5, 6, 7}) {
             Long id = addItem(catAId, ITEM_NAME + orderStatus, "99.00", "猫", null, 1);
             insertOrderDetail(id, orderStatus);
 

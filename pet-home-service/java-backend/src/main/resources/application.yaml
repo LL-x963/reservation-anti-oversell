@@ -78,6 +78,9 @@ pethome:
   mq:
     # 延迟交换机依赖 rabbitmq_delayed_message_exchange 插件，插件不可用时置为 false 即可正常启动
     delayed-enabled: true
+  order:
+    # 待支付超时自动取消延迟（毫秒），默认 30 分钟
+    cancel-delay-millis: 1800000
   upload:
     # 本地文件存储目录（相对服务启动目录），WebMvcConfig 会将其映射为静态资源
     base-dir: ./upload

@@ -42,6 +42,7 @@ class GlobalExceptionHandlerTest {
         mockMvc.perform(get("/test/business"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.bizCode").value(1001))
                 .andExpect(jsonPath("$.msg").value("库存不足"))
                 .andExpect(jsonPath("$.data").doesNotExist());
     }

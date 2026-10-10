@@ -4,6 +4,7 @@ import com.pethome.common.constant.MqConstant;
 import org.junit.jupiter.api.Test;
 import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.CustomExchange;
+import org.springframework.amqp.core.DirectExchange;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageProperties;
 import org.springframework.amqp.core.Queue;
@@ -34,40 +35,85 @@ class RabbitMQConfigTest {
     private RabbitTemplate rabbitTemplate;
 
     @Autowired
-    private CustomExchange delayedExchange;
+    private CustomExchange orderDelayExchange;
 
     @Autowired
-    private Queue orderTimeoutQueue;
+    private DirectExchange orderDirectExchange;
 
     @Autowired
-    private Binding orderTimeoutBinding;
+    private Queue orderCancelQueue;
+
+    @Autowired
+    private Queue orderRemindQueue;
+
+    @Autowired
+    private Queue orderReminderQueue;
+
+    @Autowired
+    private Binding orderCancelBinding;
+
+    @Autowired
+    private Binding orderRemindBinding;
+
+    @Autowired
+    private Binding orderReminderBinding;
 
     @Test
     void constantsShouldBeDefined() {
-        assertThat(MqConstant.DELAYED_EXCHANGE).isEqualTo("pethome.delayed.exchange");
-        assertThat(MqConstant.ORDER_TIMEOUT_QUEUE).isEqualTo("pethome.order.timeout.queue");
-        assertThat(MqConstant.ORDER_TIMEOUT_ROUTING_KEY).isEqualTo("pethome.order.timeout");
+        assertThat(MqConstant.ORDER_DELAY_EXCHANGE).isEqualTo("order.delay");
+        assertThat(MqConstant.ORDER_DIRECT_EXCHANGE).isEqualTo("order.direct");
+        assertThat(MqConstant.ORDER_CANCEL_QUEUE).isEqualTo("order.cancel.queue");
+        assertThat(MqConstant.ORDER_REMIND_QUEUE).isEqualTo("order.remind.queue");
+        assertThat(MqConstant.ORDER_REMINDER_QUEUE).isEqualTo("order.reminder.queue");
+        assertThat(MqConstant.ORDER_CANCEL_ROUTING_KEY).isEqualTo("order.cancel");
+        assertThat(MqConstant.ORDER_REMIND_ROUTING_KEY).isEqualTo("order.remind");
+        assertThat(MqConstant.ORDER_REMINDER_ROUTING_KEY).isEqualTo("order.reminder");
         assertThat(MqConstant.DELAYED_EXCHANGE_TYPE).isEqualTo("x-delayed-message");
         assertThat(MqConstant.DELAYED_ARG_NAME).isEqualTo("x-delayed-type");
         assertThat(MqConstant.DELAY_HEADER).isEqualTo("x-delay");
+        assertThat(MqConstant.ORDER_CANCEL_DELAY_MILLIS).isEqualTo(30 * 60 * 1000L);
+        assertThat(MqConstant.ORDER_REMIND_AHEAD_MILLIS).isEqualTo(60 * 60 * 1000L);
     }
 
     @Test
     void delayedExchangeBeanShouldBeDelayedType() {
-        assertThat(delayedExchange.getName()).isEqualTo(MqConstant.DELAYED_EXCHANGE);
-        assertThat(delayedExchange.getType()).isEqualTo(MqConstant.DELAYED_EXCHANGE_TYPE);
-        assertThat(delayedExchange.getArguments()).containsEntry(MqConstant.DELAYED_ARG_NAME, MqConstant.DELAYED_ARG_VALUE);
-        assertThat(delayedExchange.isDurable()).isTrue();
+        assertThat(orderDelayExchange.getName()).isEqualTo(MqConstant.ORDER_DELAY_EXCHANGE);
+        assertThat(orderDelayExchange.getType()).isEqualTo(MqConstant.DELAYED_EXCHANGE_TYPE);
+        assertThat(orderDelayExchange.getArguments())
+                .containsEntry(MqConstant.DELAYED_ARG_NAME, MqConstant.DELAYED_ARG_VALUE);
+        assertThat(orderDelayExchange.isDurable()).isTrue();
     }
 
     @Test
-    void queueAndBindingShouldBeConfigured() {
-        assertThat(orderTimeoutQueue.getName()).isEqualTo(MqConstant.ORDER_TIMEOUT_QUEUE);
-        assertThat(orderTimeoutQueue.isDurable()).isTrue();
+    void directExchangeShouldBeDirectType() {
+        assertThat(orderDirectExchange.getName()).isEqualTo(MqConstant.ORDER_DIRECT_EXCHANGE);
+        assertThat(orderDirectExchange.getType()).isEqualTo("direct");
+        assertThat(orderDirectExchange.isDurable()).isTrue();
+    }
 
-        assertThat(orderTimeoutBinding.getExchange()).isEqualTo(MqConstant.DELAYED_EXCHANGE);
-        assertThat(orderTimeoutBinding.getRoutingKey()).isEqualTo(MqConstant.ORDER_TIMEOUT_ROUTING_KEY);
-        assertThat(orderTimeoutBinding.getDestination()).isEqualTo(MqConstant.ORDER_TIMEOUT_QUEUE);
+    @Test
+    void queuesShouldBeDurable() {
+        assertThat(orderCancelQueue.getName()).isEqualTo(MqConstant.ORDER_CANCEL_QUEUE);
+        assertThat(orderRemindQueue.getName()).isEqualTo(MqConstant.ORDER_REMIND_QUEUE);
+        assertThat(orderReminderQueue.getName()).isEqualTo(MqConstant.ORDER_REMINDER_QUEUE);
+        assertThat(orderCancelQueue.isDurable()).isTrue();
+        assertThat(orderRemindQueue.isDurable()).isTrue();
+        assertThat(orderReminderQueue.isDurable()).isTrue();
+    }
+
+    @Test
+    void bindingsShouldBeConfigured() {
+        assertThat(orderCancelBinding.getExchange()).isEqualTo(MqConstant.ORDER_DELAY_EXCHANGE);
+        assertThat(orderCancelBinding.getRoutingKey()).isEqualTo(MqConstant.ORDER_CANCEL_ROUTING_KEY);
+        assertThat(orderCancelBinding.getDestination()).isEqualTo(MqConstant.ORDER_CANCEL_QUEUE);
+
+        assertThat(orderRemindBinding.getExchange()).isEqualTo(MqConstant.ORDER_DELAY_EXCHANGE);
+        assertThat(orderRemindBinding.getRoutingKey()).isEqualTo(MqConstant.ORDER_REMIND_ROUTING_KEY);
+        assertThat(orderRemindBinding.getDestination()).isEqualTo(MqConstant.ORDER_REMIND_QUEUE);
+
+        assertThat(orderReminderBinding.getExchange()).isEqualTo(MqConstant.ORDER_DIRECT_EXCHANGE);
+        assertThat(orderReminderBinding.getRoutingKey()).isEqualTo(MqConstant.ORDER_REMINDER_ROUTING_KEY);
+        assertThat(orderReminderBinding.getDestination()).isEqualTo(MqConstant.ORDER_REMINDER_QUEUE);
     }
 
     @Test
@@ -76,14 +122,19 @@ class RabbitMQConfigTest {
     }
 
     /**
-     * 真实向 Broker 声明延迟交换机、队列与绑定，验证延迟消息插件是否可用
+     * 真实向 Broker 声明交换机、队列与绑定，验证延迟消息插件是否可用
      */
     @Test
-    void delayedExchangeShouldBeDeclarableOnBroker() {
+    void allExchangesAndQueuesShouldBeDeclarableOnBroker() {
         assertThatCode(() -> {
-            rabbitAdmin.declareExchange(delayedExchange);
-            rabbitAdmin.declareQueue(orderTimeoutQueue);
-            rabbitAdmin.declareBinding(orderTimeoutBinding);
+            rabbitAdmin.declareExchange(orderDelayExchange);
+            rabbitAdmin.declareExchange(orderDirectExchange);
+            rabbitAdmin.declareQueue(orderCancelQueue);
+            rabbitAdmin.declareQueue(orderRemindQueue);
+            rabbitAdmin.declareQueue(orderReminderQueue);
+            rabbitAdmin.declareBinding(orderCancelBinding);
+            rabbitAdmin.declareBinding(orderRemindBinding);
+            rabbitAdmin.declareBinding(orderReminderBinding);
         }).doesNotThrowAnyException();
     }
 

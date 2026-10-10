@@ -36,7 +36,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BusinessException.class)
     public Result handleBusinessException(BusinessException e) {
         log.warn("业务异常: code={}, msg={}", e.getCode(), e.getMessage());
-        return Result.error(e.getMessage());
+        // code 固定为 0（失败），业务错误码通过 bizCode 透出，便于前端按码处理
+        return Result.error(e.getCode(), e.getMessage());
     }
 
     /**

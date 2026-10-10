@@ -221,7 +221,7 @@ CREATE TABLE `service_order` (
   `appointment_date` DATE DEFAULT NULL COMMENT '预约日期',
   `time_slot` VARCHAR(50) DEFAULT NULL COMMENT '预约时段',
   `total_amount` DECIMAL(10,2) NOT NULL COMMENT '总金额',
-  `status` TINYINT DEFAULT 0 COMMENT '订单状态 0待支付 1待确认 2待上门 3服务中 4已完成 5已取消 6待评价',
+  `status` TINYINT DEFAULT 1 COMMENT '订单状态 1待支付 2待确认 3待上门 4服务中 5已完成 6已取消 7待评价',
   `message_id` VARCHAR(64) DEFAULT NULL COMMENT 'MQ延迟消息ID',
   `reminder_status` TINYINT DEFAULT 0 COMMENT '提醒状态 0未提醒 1已提醒 2已取消',
   `pay_time` DATETIME DEFAULT NULL COMMENT '支付时间',
@@ -253,6 +253,25 @@ CREATE TABLE `order_detail` (
   PRIMARY KEY (`id`),
   KEY `idx_order_id` (`order_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='订单明细表';
+
+-- ----------------------------
+-- 11-1. 订单评价表
+-- ----------------------------
+DROP TABLE IF EXISTS `order_comment`;
+CREATE TABLE `order_comment` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `order_id` BIGINT NOT NULL COMMENT '订单ID',
+  `user_id` BIGINT NOT NULL COMMENT '用户ID',
+  `beautician_id` BIGINT DEFAULT NULL COMMENT '美容师ID',
+  `score` TINYINT NOT NULL COMMENT '评分 1-5',
+  `content` VARCHAR(500) DEFAULT NULL COMMENT '评价内容',
+  `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_order_id` (`order_id`),
+  KEY `idx_beautician_id` (`beautician_id`),
+  KEY `idx_user_id` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='订单评价表';
 
 -- ============================================================
 -- 模块五：AI 问答与知识库

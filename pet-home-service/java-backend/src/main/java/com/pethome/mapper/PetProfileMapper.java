@@ -20,7 +20,7 @@ public interface PetProfileMapper extends BaseMapper<PetProfile> {
      * @param petId 宠物 id
      * @return 未完成订单数量
      */
-    @Select("SELECT COUNT(1) FROM service_order WHERE pet_id = #{petId} AND status IN (0, 1, 2, 3)")
+    @Select("SELECT COUNT(1) FROM service_order WHERE pet_id = #{petId} AND status IN (1, 2, 3, 4)")
     long countUnfinishedOrderByPetId(@Param("petId") Long petId);
 
 }
