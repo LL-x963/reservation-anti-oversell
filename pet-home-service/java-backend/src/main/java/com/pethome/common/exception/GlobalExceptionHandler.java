@@ -4,6 +4,7 @@ import com.pethome.common.Result;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.BindException;
 import org.springframework.validation.FieldError;
@@ -116,6 +117,15 @@ public class GlobalExceptionHandler {
     public Result handleNoResourceFoundException(NoResourceFoundException e) {
         log.warn("请求地址不存在: {}", e.getResourcePath());
         return Result.error("请求地址不存在");
+    }
+
+    /**
+     * 唯一索引冲突（数据库层兜底，例如 service_category.name 的唯一索引 uk_name）
+     */
+    @ExceptionHandler(DuplicateKeyException.class)
+    public Result handleDuplicateKeyException(DuplicateKeyException e) {
+        log.warn("唯一索引冲突: {}", e.getMessage());
+        return Result.error("数据已存在，请检查名称是否重复");
     }
 
     /**

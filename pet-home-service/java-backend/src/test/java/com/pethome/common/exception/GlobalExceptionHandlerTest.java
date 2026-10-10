@@ -5,6 +5,7 @@ import com.pethome.dto.UserLoginRequest;
 import jakarta.validation.Valid;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -60,6 +61,17 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void duplicateKeyExceptionShouldReturnFriendlyMessage() throws Exception {
+        String body = mockMvc.perform(get("/test/duplicate-key"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.msg").value("数据已存在，请检查名称是否重复"))
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(body).doesNotContain("Duplicate entry").doesNotContain("uk_name");
+    }
+
+    @Test
     void paramValidationExceptionShouldReturnFieldMessage() throws Exception {
         mockMvc.perform(post("/test/valid")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -98,6 +110,11 @@ class GlobalExceptionHandlerTest {
         @GetMapping("/test/system")
         public Result system() {
             throw new IllegalStateException("连接失败: jdbc:mysql://localhost:3306/pet_home");
+        }
+
+        @GetMapping("/test/duplicate-key")
+        public Result duplicateKey() {
+            throw new DuplicateKeyException("Duplicate entry '基础洗护' for key 'service_category.uk_name'");
         }
 
         @PostMapping("/test/valid")
