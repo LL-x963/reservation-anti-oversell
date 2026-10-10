@@ -8,7 +8,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
+import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+import java.nio.file.Paths;
 
 /**
  * WebMvc 配置：注册登录拦截器、跨域配置
@@ -39,6 +42,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
     private final JwtUtil jwtUtil;
     private final RedisUtil redisUtil;
     private final JwtProperties jwtProperties;
+    private final UploadProperties uploadProperties;
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
@@ -53,6 +57,19 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .addPathPatterns("/api/admin/**")
                 .excludePathPatterns(EXCLUDE_PATHS)
                 .order(2);
+    }
+
+    /**
+     * 上传目录静态资源映射，使上传后的图片可通过 urlPrefix 直接访问
+     */
+    @Override
+    public void addResourceHandlers(ResourceHandlerRegistry registry) {
+        String location = Paths.get(uploadProperties.getBaseDir()).toAbsolutePath().normalize().toUri().toString();
+        if (!location.endsWith("/")) {
+            location = location + "/";
+        }
+        registry.addResourceHandler(uploadProperties.normalizedUrlPrefix() + "**")
+                .addResourceLocations(location);
     }
 
     @Override

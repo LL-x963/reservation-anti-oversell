@@ -143,6 +143,7 @@ CREATE TABLE `service_item` (
   `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_category_name` (`category_id`, `name`),
   KEY `idx_category_id` (`category_id`),
   KEY `idx_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='服务项目表';

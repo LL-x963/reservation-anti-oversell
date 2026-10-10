@@ -14,6 +14,7 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.stream.Collectors;
@@ -120,12 +121,21 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * 唯一索引冲突（数据库层兜底，例如 service_category.name 的唯一索引 uk_name）
+     * 唯一索引冲突（数据库层兜底，例如分类名 uk_name、同分类服务名 uk_category_name）
      */
     @ExceptionHandler(DuplicateKeyException.class)
     public Result handleDuplicateKeyException(DuplicateKeyException e) {
         log.warn("唯一索引冲突: {}", e.getMessage());
         return Result.error("数据已存在，请检查名称是否重复");
+    }
+
+    /**
+     * 上传文件超过大小限制
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public Result handleMaxUploadSizeExceededException(MaxUploadSizeExceededException e) {
+        log.warn("上传文件超过大小限制: {}", e.getMessage());
+        return Result.error("上传文件过大，请压缩后重试");
     }
 
     /**

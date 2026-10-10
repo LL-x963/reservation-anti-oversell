@@ -33,3 +33,6 @@ build/
 
 ### Logs ###
 *.log
+
+### 本地上传文件 ###
+upload/

@@ -5,6 +5,12 @@ spring:
   application:
     name: pet-home
 
+  # ---------------- 文件上传 ----------------
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 10MB
+
   # ---------------- MySQL ----------------
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -72,6 +78,18 @@ pethome:
   mq:
     # 延迟交换机依赖 rabbitmq_delayed_message_exchange 插件，插件不可用时置为 false 即可正常启动
     delayed-enabled: true
+  upload:
+    # 本地文件存储目录（相对服务启动目录），WebMvcConfig 会将其映射为静态资源
+    base-dir: ./upload
+    url-prefix: /upload/
+    # 单文件大小上限（字节），5MB
+    max-size: 5242880
+    allowed-extensions:
+      - jpg
+      - jpeg
+      - png
+      - gif
+      - webp
 
 logging:
   level:
