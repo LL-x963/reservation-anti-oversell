@@ -26,6 +26,7 @@ CREATE TABLE `user` (
   `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
   `openid` VARCHAR(64) DEFAULT NULL COMMENT '微信openid',
   `name` VARCHAR(64) DEFAULT NULL COMMENT '姓名',
+  `password` VARCHAR(100) DEFAULT NULL COMMENT '密码（BCrypt 密文），仅手机号注册的账号有值，微信登录用户为空',
   `phone` VARCHAR(20) DEFAULT NULL COMMENT '手机号',
   `sex` TINYINT DEFAULT 0 COMMENT '性别 0未知 1男 2女',
   `id_number` VARCHAR(18) DEFAULT NULL COMMENT '身份证号',
@@ -34,7 +35,9 @@ CREATE TABLE `user` (
   `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_openid` (`openid`),
-  KEY `idx_phone` (`phone`)
+  -- 手机号唯一：手机号登录自动注册依赖该约束避免并发注册出重复账号
+  -- （MySQL 唯一索引允许多个 NULL，微信登录用户手机号为空不受影响）
+  UNIQUE KEY `uk_phone` (`phone`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户表';
 
 -- ----------------------------
@@ -325,6 +328,15 @@ SET FOREIGN_KEY_CHECKS = 1;
 -- ============================================================
 INSERT INTO `employee` (`username`, `password`, `name`, `phone`, `sex`, `status`, `create_time`, `update_time`)
 VALUES ('admin', '$2a$10$l1VUQ2bO.T167NU6Vb7zhOnYtaWA8qMxiPnACixVJvQYTOi.bqohe', '超级管理员', '13800000000', 1, 1, NOW(), NOW());
+
+-- ============================================================
+-- 初始化演示用户（H5 用户端登录页底部提示的演示账号）
+-- 手机号：13800138000
+-- 密码：123456（BCrypt 加密存储，与 UserServiceImpl 的 BCryptPasswordEncoder 校验保持一致）
+-- openid 留空表示该账号未绑定微信，仅供手机号+密码登录
+-- ============================================================
+INSERT INTO `user` (`openid`, `name`, `password`, `phone`, `sex`, `create_time`, `update_time`)
+VALUES (NULL, '演示用户', '$2a$10$zq2JYyKkyRhC9B.uV3PMl.kQagEmoxUETvtbiL2i2DWLD8EeapIOi', '13800138000', 0, NOW(), NOW());
 
 -- ============================================================
 -- 说明：

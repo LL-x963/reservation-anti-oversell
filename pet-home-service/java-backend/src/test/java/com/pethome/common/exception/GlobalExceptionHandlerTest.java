@@ -75,12 +75,14 @@ class GlobalExceptionHandlerTest {
 
     @Test
     void paramValidationExceptionShouldReturnFieldMessage() throws Exception {
+        // 提示格式为「字段名 + 提示」，这里用密码长度触发校验
+        // 注意：openid 已改为可选的两种登录方式之一（与手机号+密码二选一），不再必填
         mockMvc.perform(post("/test/valid")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{}"))
+                        .content("{\"password\":\"123\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
-                .andExpect(jsonPath("$.msg").value(org.hamcrest.Matchers.containsString("openid")));
+                .andExpect(jsonPath("$.msg").value(org.hamcrest.Matchers.containsString("password")));
     }
 
     @Test

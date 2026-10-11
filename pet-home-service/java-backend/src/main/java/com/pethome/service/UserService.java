@@ -1,6 +1,7 @@
 package com.pethome.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.pethome.dto.UserLoginRequest;
 import com.pethome.entity.User;
 import com.pethome.vo.LoginVO;
 import com.pethome.vo.UserProfileVO;
@@ -13,9 +14,16 @@ import com.pethome.vo.UserProfileVO;
 public interface UserService extends IService<User> {
 
     /**
-     * openid 登录，不存在则自动注册
+     * 用户登录，支持两种方式（二选一，均支持首次登录自动注册）：
+     * <ul>
+     *   <li>openid 微信登录；</li>
+     *   <li>手机号 + 密码登录。</li>
+     * </ul>
+     *
+     * @param request 登录请求（openid 或 手机号 + 密码）
+     * @return token 与登录用户信息
      */
-    LoginVO login(String openid);
+    LoginVO login(UserLoginRequest request);
 
     /**
      * 查询当前登录用户信息

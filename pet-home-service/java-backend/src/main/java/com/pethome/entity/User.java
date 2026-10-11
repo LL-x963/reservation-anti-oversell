@@ -28,6 +28,9 @@ public class User extends BaseEntity {
     /** 姓名 */
     private String name;
 
+    /** 密码（BCrypt 密文），仅手机号注册的账号有值；微信登录用户为 null */
+    private String password;
+
     /** 手机号 */
     private String phone;
 

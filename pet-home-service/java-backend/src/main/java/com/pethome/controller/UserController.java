@@ -27,11 +27,14 @@ public class UserController {
     private final UserService userService;
 
     /**
-     * openid 登录（免登录接口）
+     * 用户登录（免登录接口）
+     *
+     * <p>支持两种方式（二选一，均支持首次登录自动注册）：{@code {openid}} 微信登录、
+     * {@code {phone, password}} 手机号密码登录。</p>
      */
     @PostMapping("/login")
     public Result login(@RequestBody @Valid UserLoginRequest request) {
-        return Result.success(userService.login(request.getOpenid()));
+        return Result.success(userService.login(request));
     }
 
     /**
