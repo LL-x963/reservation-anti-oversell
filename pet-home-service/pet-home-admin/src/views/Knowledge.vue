@@ -170,7 +170,7 @@ async function pollIndexStatus() {
 
   if (counts.value.failedCount > 0) {
     ElMessage.warning(
-      `索引重建完成：${counts.value.normalCount} 篇正常，${counts.value.failedCount} 篇失败`
+      `索引重建完成：${counts.value.normalCount} 篇正常，${counts.value.failedCount} 篇失败（常见原因：RAG 服务未启动，请检查后重试）`
     )
   } else {
     ElMessage.success(`索引重建完成：${counts.value.normalCount} 篇文档索引正常`)
@@ -465,6 +465,10 @@ onBeforeUnmount(stopPolling)
         <span class="status-item is-primary">索引中 <b>{{ counts.indexingCount }}</b></span>
         <span class="status-item is-danger">失败 <b>{{ counts.failedCount }}</b></span>
 
+        <span v-if="counts.failedCount > 0" class="status-hint">
+          索引失败通常是 RAG 服务未启动（默认 http://localhost:8000），请启动服务后重新点击「重建索引」
+        </span>
+
         <el-button link type="primary" :icon="Refresh" @click="handleRefreshStatus">
           刷新状态
         </el-button>
@@ -647,6 +651,11 @@ onBeforeUnmount(stopPolling)
 }
 
 .status-item.is-danger b {
+  color: #f56c6c;
+}
+
+.status-hint {
+  font-size: 12px;
   color: #f56c6c;
 }
 

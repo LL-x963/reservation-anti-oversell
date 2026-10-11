@@ -128,7 +128,8 @@ class BeauticianServiceTest {
         addBeautician(NAME_B, Arrays.asList("SPA"), 0, null);
 
         BeauticianPageQuery byName = new BeauticianPageQuery();
-        byName.setName("小王");
+        // 用只属于测试数据的关键字做模糊匹配：开发库可能已有真实美容师“小王”
+        byName.setName("美容师小王");
         IPage<BeauticianVO> namePage = beauticianService.pageForAdmin(byName);
         assertThat(namePage.getTotal()).isEqualTo(1);
         assertThat(namePage.getRecords().get(0).getName()).isEqualTo(NAME_A);
@@ -139,7 +140,10 @@ class BeauticianServiceTest {
 
         BeauticianPageQuery byTag = new BeauticianPageQuery();
         byTag.setSkillTag("洗护");
-        assertThat(beauticianService.pageForAdmin(byTag).getTotal()).isEqualTo(1);
+        byTag.setPageSize(100);
+        // 开发库可能已有真实美容师也带“洗护”标签，这里断言本次新增的记录被精确命中
+        assertThat(beauticianService.pageForAdmin(byTag).getRecords())
+                .extracting(BeauticianVO::getName).contains(NAME_A);
 
         // FIND_IN_SET 精确匹配，部分匹配不应命中
         BeauticianPageQuery byPartialTag = new BeauticianPageQuery();

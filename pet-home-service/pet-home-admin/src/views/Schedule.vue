@@ -267,6 +267,7 @@ onMounted(async () => {
           <el-date-picker
             v-model="query.date"
             type="date"
+            :editable="false"
             placeholder="请选择日期"
             value-format="yyyy-MM-dd"
             format="yyyy-MM-dd"
@@ -362,6 +363,7 @@ onMounted(async () => {
           <el-date-picker
             v-model="batchForm.date"
             type="date"
+            :editable="false"
             placeholder="请选择日期"
             value-format="yyyy-MM-dd"
             format="yyyy-MM-dd"

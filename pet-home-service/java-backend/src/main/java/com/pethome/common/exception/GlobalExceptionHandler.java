@@ -1,5 +1,7 @@
 package com.pethome.common.exception;
 
+import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import com.pethome.common.Result;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
@@ -17,6 +19,10 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -29,6 +35,16 @@ import java.util.stream.Collectors;
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    /**
+     * 字段名 → 中文标签（用于把「请求体解析失败」提示得更可定位，可按需补充）
+     */
+    private static final Map<String, String> FIELD_LABELS = Map.of(
+            "entryTime", "入职日期",
+            "appointmentDate", "预约日期",
+            "birthday", "生日",
+            "date", "日期"
+    );
 
     /**
      * 业务异常
@@ -96,11 +112,14 @@ public class GlobalExceptionHandler {
 
     /**
      * 请求体格式错误
+     *
+     * <p>JSON 语法错误统一提示「请求参数格式错误」；若某个字段的值类型不对（例如把
+     * {@code yyyy-09-Tu} 传给 LocalDate 类型的入职日期），则尽量给出可定位的提示。</p>
      */
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public Result handleHttpMessageNotReadableException(HttpMessageNotReadableException e) {
         log.warn("请求体解析失败: {}", e.getMessage());
-        return Result.error("请求参数格式错误");
+        return Result.error(describeParseError(e));
     }
 
     /**
@@ -150,6 +169,61 @@ public class GlobalExceptionHandler {
 
     private String formatFieldError(FieldError fieldError) {
         return fieldError.getField() + " " + fieldError.getDefaultMessage();
+    }
+
+    /**
+     * 把「请求体解析失败」翻译成可定位的提示
+     *
+     * <p>例如：入职日期格式不正确，应为 yyyy-MM-dd。非字段类型问题时仍返回通用提示，
+     * 避免把 Jackson 原始信息（含类名）暴露给调用方。</p>
+     */
+    private String describeParseError(HttpMessageNotReadableException e) {
+        InvalidFormatException invalid = findInvalidFormatException(e);
+        if (invalid == null) {
+            return "请求参数格式错误";
+        }
+
+        String field = invalid.getPath().stream()
+                .map(JsonMappingException.Reference::getFieldName)
+                .filter(name -> name != null && !name.isBlank())
+                .findFirst()
+                .orElse(null);
+        String label = field == null ? "参数" : FIELD_LABELS.getOrDefault(field, "参数 " + field);
+        String pattern = expectedPattern(invalid.getTargetType());
+        return pattern == null ? label + " 类型不正确" : label + "格式不正确，应为 " + pattern;
+    }
+
+    /**
+     * 在异常链中查找 Jackson 的字段值格式异常（最多向下 5 层，避免异常链异常时死循环）
+     */
+    private InvalidFormatException findInvalidFormatException(Throwable throwable) {
+        Throwable current = throwable;
+        for (int depth = 0; current != null && depth < 5; depth++) {
+            if (current instanceof InvalidFormatException invalidFormatException) {
+                return invalidFormatException;
+            }
+            current = current.getCause();
+        }
+        return null;
+    }
+
+    /**
+     * 目标类型对应的期望格式；非日期时间类型返回 null（改为提示「类型不正确」）
+     */
+    private String expectedPattern(Class<?> targetType) {
+        if (targetType == null) {
+            return null;
+        }
+        if (LocalDateTime.class.isAssignableFrom(targetType)) {
+            return "yyyy-MM-dd HH:mm:ss";
+        }
+        if (LocalDate.class.isAssignableFrom(targetType)) {
+            return "yyyy-MM-dd";
+        }
+        if (LocalTime.class.isAssignableFrom(targetType)) {
+            return "HH:mm:ss";
+        }
+        return null;
     }
 
 }

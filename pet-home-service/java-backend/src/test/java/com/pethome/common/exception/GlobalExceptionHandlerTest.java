@@ -1,6 +1,7 @@
 package com.pethome.common.exception;
 
 import com.pethome.common.Result;
+import com.pethome.dto.BeauticianAddRequest;
 import com.pethome.dto.UserLoginRequest;
 import jakarta.validation.Valid;
 import org.junit.jupiter.api.BeforeEach;
@@ -100,6 +101,30 @@ class GlobalExceptionHandlerTest {
                 .andExpect(jsonPath("$.msg").value("请求参数格式错误"));
     }
 
+    @Test
+    void fieldFormatErrorShouldReturnLocatableMessage() throws Exception {
+        // 日期字段被传入非法文本（例如页面手输 yyyy-09-Tu）→ 提示具体字段与期望格式
+        mockMvc.perform(post("/test/date-format")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"entryTime\":\"yyyy-09-Tu\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.msg").value("入职日期格式不正确，应为 yyyy-MM-dd"));
+
+        // 非日期字段类型错误 → 提示「类型不正确」，且不暴露 Jackson 原始信息
+        String body = mockMvc.perform(post("/test/date-format")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"entryTime\":\"2024-01-01\",\"status\":\"在职\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.msg").value("参数 status 类型不正确"))
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(body).doesNotContain("InvalidFormatException")
+                .doesNotContain("java.lang")
+                .doesNotContain("com.fasterxml");
+    }
+
     @RestController
     static class TestController {
 
@@ -130,6 +155,11 @@ class GlobalExceptionHandlerTest {
 
         @PostMapping("/test/not-readable")
         public Result notReadable(@RequestBody UserLoginRequest request) {
+            return Result.success();
+        }
+
+        @PostMapping("/test/date-format")
+        public Result dateFormat(@RequestBody BeauticianAddRequest request) {
             return Result.success();
         }
     }

@@ -284,6 +284,7 @@ onMounted(() => {
           <el-date-picker
             v-model="query.appointmentDate"
             type="date"
+            :editable="false"
             placeholder="请选择预约日期"
             value-format="yyyy-MM-dd"
             format="yyyy-MM-dd"

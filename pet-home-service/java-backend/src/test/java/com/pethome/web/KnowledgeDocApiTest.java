@@ -1,6 +1,7 @@
 package com.pethome.web;
 
 import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.pethome.common.constant.RedisKeyConstant;
 import com.pethome.common.enums.UserType;
@@ -128,9 +129,10 @@ class KnowledgeDocApiTest {
         assertThat(id).isNotNull().isPositive();
 
         // 分页：分类 + 启用状态筛选，列表不返回大字段 content
+        // 注意：开发库可能已有真实文档，因此只断言「至少包含本次新增的这篇」，并按其 id 倒序排在第一
         JSONObject pageData = getJson(BASE + "/page?category=护理&enabled=1&page=1&pageSize=10", token)
                 .getJSONObject("data");
-        assertThat(pageData.getLong("total")).isEqualTo(1L);
+        assertThat(pageData.getLong("total")).isGreaterThanOrEqualTo(1L);
         JSONObject record = pageData.getJSONArray("records").getJSONObject(0);
         assertThat(record.getString("title")).isEqualTo(title);
         assertThat(record.getInteger("enabled")).isEqualTo(1);
@@ -160,8 +162,13 @@ class KnowledgeDocApiTest {
 
         // 禁用
         assertThat(putJson(BASE + "/status", Map.of("id", id, "enabled", 0), token).getInteger("code")).isEqualTo(1);
-        assertThat(getJson(BASE + "/page?enabled=1", token).getJSONObject("data").getLong("total")).isZero();
-        assertThat(getJson(BASE + "/page?enabled=0", token).getJSONObject("data").getLong("total")).isEqualTo(1L);
+        // 开发库可能已有真实文档，这里只断言该文档从「启用」列表移出、并能在「禁用」列表查到
+        JSONArray enabledList = getJson(BASE + "/page?enabled=1&pageSize=100", token)
+                .getJSONObject("data").getJSONArray("records");
+        assertThat(containsDocId(enabledList, id)).isFalse();
+        JSONArray disabledList = getJson(BASE + "/page?enabled=0&pageSize=100", token)
+                .getJSONObject("data").getJSONArray("records");
+        assertThat(containsDocId(disabledList, id)).isTrue();
 
         // 重新启用
         assertThat(putJson(BASE + "/status", Map.of("id", id, "enabled", 1), token).getInteger("code")).isEqualTo(1);
@@ -183,9 +190,11 @@ class KnowledgeDocApiTest {
         assertThat(putJson(BASE + "/update", updateBody, token).getInteger("code")).isEqualTo(1);
         assertThat(getJson(BASE + "/" + id, token).getJSONObject("data").getInteger("indexStatus")).isZero();
 
-        // 删除
+        // 删除：删除后该文档详情查不到（开发库可能还有其它真实文档，不能用总数判断）
         assertThat(deleteDoc(token, id).getInteger("code")).isEqualTo(1);
-        assertThat(getJson(BASE + "/page?enabled=1", token).getJSONObject("data").getLong("total")).isZero();
+        JSONObject deleted = getJson(BASE + "/" + id, token);
+        assertThat(deleted.getInteger("code")).isZero();
+        assertThat(deleted.getString("msg")).contains("文档不存在");
     }
 
     // ==================== 业务规则 ====================
@@ -282,19 +291,20 @@ class KnowledgeDocApiTest {
     @Test
     void indexStatusShouldReturnOverviewFields() {
         String token = adminToken();
+        // 开发库可能已有真实文档（含重建失败的），这里以「新增一篇文档带来的增量」为准做断言
+        JSONObject before = getJson(BASE + "/indexStatus", token).getJSONObject("data");
+
         Long id = addDoc(token, TITLE_PREFIX + "概览", "护理", "正文");
 
         JSONObject response = getJson(BASE + "/indexStatus", token);
 
         assertThat(response.getInteger("code")).isEqualTo(1);
         JSONObject data = response.getJSONObject("data");
-        assertThat(data.getLong("totalCount")).isGreaterThanOrEqualTo(1L);
-        assertThat(data.getLong("enabledCount")).isGreaterThanOrEqualTo(1L);
-        assertThat(data.getLong("disabledCount")).isZero();
-        assertThat(data.getLong("notIndexedCount")).isGreaterThanOrEqualTo(1L);
+        assertThat(data.getLong("totalCount")).isEqualTo(before.getLong("totalCount") + 1);
+        assertThat(data.getLong("enabledCount")).isEqualTo(before.getLong("enabledCount") + 1);
+        assertThat(data.getLong("notIndexedCount")).isEqualTo(before.getLong("notIndexedCount") + 1);
+        // 未处于重建中（该测试不会触发重建）
         assertThat(data.getLong("indexingCount")).isZero();
-        assertThat(data.getLong("normalCount")).isZero();
-        assertThat(data.getLong("failedCount")).isZero();
         assertThat(data.getBoolean("rebuilding")).isFalse();
 
         // 新增文档默认为 0未索引
@@ -337,6 +347,18 @@ class KnowledgeDocApiTest {
     /**
      * 轮询等待异步重建索引结束（最长 15 秒），返回索引状态概览 data
      */
+    /**
+     * 分页 records 中是否包含指定文档 id
+     */
+    private boolean containsDocId(JSONArray records, Long id) {
+        for (int i = 0; i < records.size(); i++) {
+            if (id.equals(records.getJSONObject(i).getLong("id"))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private JSONObject awaitRebuildFinished(String token) {
         long deadline = System.currentTimeMillis() + 15_000L;
         JSONObject data = getJson(BASE + "/indexStatus", token).getJSONObject("data");

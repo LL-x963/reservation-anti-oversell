@@ -444,6 +444,7 @@ onMounted(loadList)
           <el-date-picker
             v-model="form.entryTime"
             type="date"
+            :editable="false"
             placeholder="请选择入职日期"
             value-format="yyyy-MM-dd"
             format="yyyy-MM-dd"

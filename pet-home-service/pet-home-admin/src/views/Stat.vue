@@ -248,6 +248,7 @@ onBeforeUnmount(() => {
                   v-model="revenueQuery.date"
                   type="date"
                   size="small"
+                  :editable="false"
                   placeholder="选择基准日期"
                   value-format="yyyy-MM-dd"
                   format="yyyy-MM-dd"
