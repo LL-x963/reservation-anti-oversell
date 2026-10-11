@@ -1,0 +1,139 @@
+/**
+ * 全局样式：移动端基础适配
+ *
+ * 适配要点：
+ * 1. 盒模型与视口：index.html 的 viewport 已禁止缩放，这里统一 border-box、100% 高度；
+ * 2. 安全区域：iPhone 刘海屏与底部手势条通过 env(safe-area-inset-*) 处理，
+ *    统一收敛成 CSS 变量，页面与 TabBar 引用变量即可，无需各自写 env()；
+ * 3. 触感优化：去掉点击高亮、禁止页面橡皮筋滚动、加快点击响应；
+ * 4. Element Plus 移动端微调：消息提示避开刘海、弹窗窄屏自适应宽度。
+ */
+
+:root {
+  /* 安全区域（非刘海屏设备 env() 返回 0） */
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  /* 顶部标题栏高度（不含状态栏安全区域） */
+  --h5-navbar-height: 44px;
+  /* 底部 TabBar 高度（不含底部安全区域） */
+  --h5-tabbar-height: 52px;
+  /* 页面左右内边距 */
+  --h5-page-padding: 12px;
+  /* 主色：如需换成品牌暖橙色，放开下面一行即可（Element Plus 全量跟随） */
+  /* --el-color-primary: #ff8c1a; */
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', 'Microsoft YaHei',
+    Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #303133;
+  background-color: #f5f6f8;
+  /* 移动端：去掉点击高亮、禁止字体自动放大、禁止页面整体橡皮筋滚动 */
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  overscroll-behavior-y: none;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p,
+figure {
+  margin: 0;
+}
+
+ul,
+ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+  border: 0;
+}
+
+input,
+textarea,
+button {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+/* 移动端点击响应更快（消除 300ms 延迟与双击缩放判定） */
+a,
+button,
+[role='button'],
+.h5-tap {
+  touch-action: manipulation;
+}
+
+/* ---------------- 通用容器 ---------------- */
+
+/* 页面容器：统一左右留白 */
+.h5-page {
+  padding: var(--h5-page-padding);
+}
+
+/* 卡片容器 */
+.h5-card {
+  margin-bottom: 12px;
+  padding: 12px;
+  background-color: #fff;
+  border-radius: 10px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+}
+
+/* 骨架阶段的占位区块（后续各页面实现后可直接删除） */
+.h5-placeholder {
+  padding: 28px 16px;
+  color: #909399;
+  font-size: 13px;
+  text-align: center;
+}
+
+/* 列表行：标题左、内容右 */
+.h5-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+}
+
+/* ---------------- Element Plus 移动端微调 ---------------- */
+
+/* 消息提示避开刘海屏 */
+.el-message {
+  top: calc(var(--safe-area-top) + 12px) !important;
+  width: auto;
+  max-width: 88%;
+}
+
+/* 弹窗在窄屏下自适应，避免超出屏幕 */
+.el-dialog {
+  --el-dialog-width: 88% !important;
+  border-radius: 12px;
+}
+
+/* 触感反馈：移动端按钮/单元格点击更跟手 */
+.el-button {
+  touch-action: manipulation;
+}
