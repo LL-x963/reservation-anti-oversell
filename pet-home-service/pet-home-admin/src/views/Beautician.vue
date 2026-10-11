@@ -446,8 +446,8 @@ onMounted(loadList)
             type="date"
             :editable="false"
             placeholder="请选择入职日期"
-            value-format="yyyy-MM-dd"
-            format="yyyy-MM-dd"
+            value-format="YYYY-MM-DD"
+            format="YYYY-MM-DD"
             :disabled-date="disabledFutureDate"
             style="width: 100%"
           />

@@ -269,8 +269,8 @@ onMounted(async () => {
             type="date"
             :editable="false"
             placeholder="请选择日期"
-            value-format="yyyy-MM-dd"
-            format="yyyy-MM-dd"
+            value-format="YYYY-MM-DD"
+            format="YYYY-MM-DD"
             style="width: 170px"
           />
         </el-form-item>
@@ -365,8 +365,8 @@ onMounted(async () => {
             type="date"
             :editable="false"
             placeholder="请选择日期"
-            value-format="yyyy-MM-dd"
-            format="yyyy-MM-dd"
+            value-format="YYYY-MM-DD"
+            format="YYYY-MM-DD"
             style="width: 100%"
           />
         </el-form-item>

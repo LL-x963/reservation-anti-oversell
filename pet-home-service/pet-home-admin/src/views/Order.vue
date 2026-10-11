@@ -286,8 +286,8 @@ onMounted(() => {
             type="date"
             :editable="false"
             placeholder="请选择预约日期"
-            value-format="yyyy-MM-dd"
-            format="yyyy-MM-dd"
+            value-format="YYYY-MM-DD"
+            format="YYYY-MM-DD"
             clearable
             style="width: 180px"
           />

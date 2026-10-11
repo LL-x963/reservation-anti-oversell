@@ -1,8 +1,10 @@
 """宠享到家 - RAG 知识库问答服务入口。
 
-技术栈：FastAPI + uvicorn + LangChain + Chroma + Ollama + bge-small-zh
+技术栈：FastAPI + uvicorn + LangChain 1.x + Chroma + Ollama
+（向量化默认走 Ollama 的 bge-m3，对话模型默认 deepseek-r1:1.5b，均可用环境变量覆盖）
 
-启动命令：
+启动方式（二选一，需在 rag-service 目录下执行）：
+    python main.py
     uvicorn main:app --host 0.0.0.0 --port 8000
 """
 
@@ -24,6 +26,10 @@ logging.basicConfig(
     format="%(asctime)s | %(levelname)-7s | %(name)s | %(message)s",
 )
 logger = logging.getLogger("app")
+
+# 422 状态码：Starlette 新版本把 HTTP_422_UNPROCESSABLE_ENTITY 改名为 HTTP_422_UNPROCESSABLE_CONTENT，
+# 这里按版本兼容取值，避免出现弃用告警
+HTTP_422_UNPROCESSABLE = getattr(status, "HTTP_422_UNPROCESSABLE_CONTENT", 422)
 
 
 @asynccontextmanager
@@ -119,8 +125,8 @@ async def handle_validation_exception(request: Request, exc: RequestValidationEr
     message = _first_error_message(exc)
     logger.warning("参数校验失败：%s %s -> %s", request.method, request.url.path, message)
     return JSONResponse(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        content={"code": status.HTTP_422_UNPROCESSABLE_ENTITY, "message": f"请求参数不合法：{message}"},
+        status_code=HTTP_422_UNPROCESSABLE,
+        content={"code": HTTP_422_UNPROCESSABLE, "message": f"请求参数不合法：{message}"},
     )
 
 
@@ -141,5 +147,18 @@ def _first_error_message(exc: RequestValidationError) -> str:
         return "参数格式错误"
 
     first = errors[0]
-    location = ".".join(str(item) for item in first.get("loc", ()) if item not in ("body", "query", "path"))
-    return f"{location} {first.get('msg', '')}".strip()
+    location = [str(item) for item in first.get("loc", ()) if item not in ("body", "query", "path")]
+    # 整个请求体缺失时给出明确提示：例如 /api/knowledge/reindex 未传 documents
+    if not location and first.get("type") == "missing":
+        return "请求体不能为空"
+    return f"{'.'.join(location)} {first.get('msg', '')}".strip()
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=False  # 开发阶段可以改成 True 开启热重载
+    )

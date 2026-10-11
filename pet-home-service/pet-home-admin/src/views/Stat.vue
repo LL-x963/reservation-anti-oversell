@@ -250,8 +250,8 @@ onBeforeUnmount(() => {
                   size="small"
                   :editable="false"
                   placeholder="选择基准日期"
-                  value-format="yyyy-MM-dd"
-                  format="yyyy-MM-dd"
+                  value-format="YYYY-MM-DD"
+                  format="YYYY-MM-DD"
                   :clearable="false"
                   style="width: 150px"
                 />
