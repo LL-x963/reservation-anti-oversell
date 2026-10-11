@@ -58,7 +58,10 @@ service.interceptors.response.use(
     }
 
     // code=0：业务失败，弹出后端提示（如「该时段不可约」）
-    ElMessage.error(res.msg || '操作失败')
+    // 传 silent: true 的请求（如 AI 问答）由调用方在界面上自行展示失败态，避免重复提示
+    if (!response.config.silent) {
+      ElMessage.error(res.msg || '操作失败')
+    }
     return Promise.reject(new Error(res.msg || '操作失败'))
   },
   (error) => {
@@ -71,15 +74,17 @@ service.interceptors.response.use(
       return Promise.reject(error)
     }
 
-    // 统一网络/服务端异常提示
-    if (message) {
-      ElMessage.error(message)
-    } else if (error?.code === 'ECONNABORTED') {
-      ElMessage.error('请求超时，请稍后重试')
-    } else if (status) {
-      ElMessage.error(`请求失败（${status}）`)
-    } else {
-      ElMessage.error('网络异常，请检查网络连接')
+    // 统一网络/服务端异常提示（silent: true 的请求由调用方自行展示，不弹全局提示）
+    if (!error?.config?.silent) {
+      if (message) {
+        ElMessage.error(message)
+      } else if (error?.code === 'ECONNABORTED') {
+        ElMessage.error('请求超时，请稍后重试')
+      } else if (status) {
+        ElMessage.error(`请求失败（${status}）`)
+      } else {
+        ElMessage.error('网络异常，请检查网络连接')
+      }
     }
     return Promise.reject(error)
   }

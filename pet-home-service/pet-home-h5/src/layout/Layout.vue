@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
-import AiChatFloat from '@/components/AiChatFloat.vue'
+import ChatDialog from '@/components/ChatDialog.vue'
 
 /** 底部导航配置：首页、服务、预约车、订单、我的 */
 const TABS = [
@@ -74,8 +74,8 @@ function goBack() {
       </div>
     </nav>
 
-    <!-- 全局悬浮 AI 问答入口（占位组件，后续替换为真实问答） -->
-    <AiChatFloat />
+    <!-- 全局悬浮 AI 问答组件（养宠百科） -->
+    <ChatDialog />
   </div>
 </template>
 

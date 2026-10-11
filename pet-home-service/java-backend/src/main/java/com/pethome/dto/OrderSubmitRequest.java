@@ -55,4 +55,8 @@ public class OrderSubmitRequest implements Serializable {
     @Size(max = 20, message = "单次下单服务项不能超过20个")
     private List<@Valid OrderItemRequest> items;
 
+    /** 备注（选填），写入 service_order.remark */
+    @Size(max = 200, message = "备注长度不能超过200")
+    private String remark;
+
 }

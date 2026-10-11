@@ -31,6 +31,11 @@ public class ServiceItemSimpleVO implements Serializable {
 
     private String suitWeight;
 
+    /**
+     * 服务描述（列表页卡片需要展示简介，前端自行截断）
+     */
+    private String description;
+
     private String image;
 
 }

@@ -42,6 +42,13 @@ public interface OrderService {
     void cancelByUser(Long orderId);
 
     /**
+     * 删除本人「已取消」的订单（连同订单明细一并删除）
+     *
+     * @param orderId 订单 id
+     */
+    void deleteByUser(Long orderId);
+
+    /**
      * 催单：Redis 限流 + 状态校验 + 发送即时通知
      */
     void remind(Long orderId);

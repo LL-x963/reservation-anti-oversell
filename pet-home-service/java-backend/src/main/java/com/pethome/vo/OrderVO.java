@@ -7,6 +7,8 @@ import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * 订单列表项
@@ -51,5 +53,8 @@ public class OrderVO implements Serializable {
     private String statusDesc;
 
     private LocalDateTime createTime;
+
+    /** 服务明细（下单快照）；列表页据此展示服务名称与数量 */
+    private List<OrderItemVO> items = new ArrayList<>();
 
 }

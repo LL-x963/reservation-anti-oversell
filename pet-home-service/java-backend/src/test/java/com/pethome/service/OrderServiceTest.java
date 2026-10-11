@@ -651,6 +651,17 @@ class OrderServiceTest {
         assertThat(detail.getItems()).hasSize(1);
     }
 
+    @Test
+    void submitShouldPersistRemarkAndTrimWhitespace() {
+        OrderSubmitRequest request = submitRequest();
+        request.setRemark("  请带大功率吹风机  ");
+
+        Long orderId = orderService.submit(request).getOrderId();
+
+        // 备注写入订单，且前后空白被去除
+        assertThat(serviceOrderMapper.selectById(orderId).getRemark()).isEqualTo("请带大功率吹风机");
+    }
+
     // ==================== 辅助方法 ====================
 
     private OrderSubmitRequest submitRequest() {

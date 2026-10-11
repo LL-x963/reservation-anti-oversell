@@ -43,6 +43,7 @@ import com.pethome.service.PetProfileService;
 import com.pethome.service.ServiceItemService;
 import com.pethome.service.UserService;
 import com.pethome.util.OrderNumberGenerator;
+import com.pethome.util.AddressUtil;
 import com.pethome.util.RedisUtil;
 import com.pethome.vo.OrderCommentVO;
 import com.pethome.vo.OrderDetailVO;
@@ -166,6 +167,8 @@ public class OrderServiceImpl extends ServiceImpl<ServiceOrderMapper, ServiceOrd
         order.setBeauticianId(request.getBeauticianId());
         order.setAppointmentDate(request.getAppointmentDate());
         order.setTimeSlot(timeSlot);
+        // 备注选填：空白统一存 null，避免出现无意义空串
+        order.setRemark(StringUtils.hasText(request.getRemark()) ? request.getRemark().trim() : null);
         order.setTotalAmount(totalAmount);
         order.setStatus(OrderStatus.PENDING_PAY.getCode());
         order.setReminderStatus(REMINDER_STATUS_NONE);
@@ -266,6 +269,21 @@ public class OrderServiceImpl extends ServiceImpl<ServiceOrderMapper, ServiceOrd
     public void cancelByUser(Long orderId) {
         Long userId = UserContext.requireUserId();
         doCancel(getOwnedOrder(orderId, userId), "用户取消");
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteByUser(Long orderId) {
+        Long userId = UserContext.requireUserId();
+        ServiceOrder order = getOwnedOrder(orderId, userId);
+        // 只允许删除已取消订单，避免用户在服务进行中把记录删掉
+        if (!Integer.valueOf(OrderStatus.CANCELED.getCode()).equals(order.getStatus())) {
+            throw new BusinessException("只能删除已取消的订单");
+        }
+        orderDetailMapper.delete(new LambdaQueryWrapper<OrderDetail>()
+                .eq(OrderDetail::getOrderId, orderId));
+        removeById(orderId);
+        log.info("删除已取消订单成功: orderId={}, userId={}", orderId, userId);
     }
 
     @Override
@@ -535,11 +553,31 @@ public class OrderServiceImpl extends ServiceImpl<ServiceOrderMapper, ServiceOrd
                 .filter(Objects::nonNull)
                 .distinct()
                 .collect(Collectors.toList()));
-        return page.convert(order -> toVO(order, beauticianNames, petNames, userNames));
+        // 服务明细同样批量查询（一页一次），避免 N+1
+        Map<Long, List<OrderItemVO>> itemsMap = getOrderItemsMap(records.stream()
+                .map(ServiceOrder::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList()));
+        return page.convert(order -> toVO(order, beauticianNames, petNames, userNames, itemsMap));
+    }
+
+    /**
+     * 批量查询订单明细：orderId -> 明细列表
+     */
+    private Map<Long, List<OrderItemVO>> getOrderItemsMap(List<Long> orderIds) {
+        if (CollectionUtils.isEmpty(orderIds)) {
+            return Collections.emptyMap();
+        }
+        return orderDetailMapper.selectList(new LambdaQueryWrapper<OrderDetail>()
+                        .in(OrderDetail::getOrderId, orderIds))
+                .stream()
+                .collect(Collectors.groupingBy(OrderDetail::getOrderId,
+                        Collectors.mapping(this::toItemVO, Collectors.toList())));
     }
 
     private OrderVO toVO(ServiceOrder order, Map<Long, String> beauticianNames,
-                         Map<Long, String> petNames, Map<Long, String> userNames) {
+                         Map<Long, String> petNames, Map<Long, String> userNames,
+                         Map<Long, List<OrderItemVO>> itemsMap) {
         OrderVO vo = new OrderVO();
         vo.setId(order.getId());
         vo.setOrderNumber(order.getOrderNumber());
@@ -555,6 +593,7 @@ public class OrderServiceImpl extends ServiceImpl<ServiceOrderMapper, ServiceOrd
         vo.setStatus(order.getStatus());
         vo.setStatusDesc(OrderStatus.descOf(order.getStatus()));
         vo.setCreateTime(order.getCreateTime());
+        vo.setItems(itemsMap.getOrDefault(order.getId(), Collections.emptyList()));
         return vo;
     }
 
@@ -667,25 +706,7 @@ public class OrderServiceImpl extends ServiceImpl<ServiceOrderMapper, ServiceOrd
         }
         vo.setConsignee(address.getConsignee());
         vo.setConsigneePhone(address.getPhone());
-        vo.setAddress(joinFullAddress(address));
-    }
-
-    /**
-     * 拼接完整地址（省 / 市 / 区为空时自动跳过，仅拼接详细地址）
-     */
-    private String joinFullAddress(AddressBook address) {
-        StringBuilder builder = new StringBuilder();
-        appendAddressPart(builder, address.getProvinceName());
-        appendAddressPart(builder, address.getCityName());
-        appendAddressPart(builder, address.getDistrictName());
-        appendAddressPart(builder, address.getDetail());
-        return builder.isEmpty() ? null : builder.toString();
-    }
-
-    private void appendAddressPart(StringBuilder builder, String part) {
-        if (StringUtils.hasText(part)) {
-            builder.append(part.trim());
-        }
+        vo.setAddress(AddressUtil.fullAddress(address));
     }
 
     /**

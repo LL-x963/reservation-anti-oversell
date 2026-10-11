@@ -1,6 +1,7 @@
 package com.pethome.web;
 
 import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.pethome.common.constant.RedisKeyConstant;
 import com.pethome.common.enums.OrderStatus;
@@ -538,6 +539,65 @@ class OrderApiTest {
         body.put("timeSlot", timeSlot);
         body.put("items", List.of(Map.of("serviceId", serviceId, "quantity", quantity)));
         return body;
+    }
+
+    // ==================== 列表明细 / 删除 ====================
+
+    @Test
+    void orderListShouldContainItemSnapshot() {
+        Long orderId = submitOrder(tokenA, SLOT_10_12, 1).getJSONObject("data").getLong("orderId");
+        createdOrderIds.add(orderId);
+
+        JSONObject record = getJson("/api/user/order/page", tokenA)
+                .getBody().getJSONObject("data").getJSONArray("records").getJSONObject(0);
+
+        assertThat(record.getLong("id")).isEqualTo(orderId);
+        // 列表也要带服务明细（H5 列表需展示服务名称与数量）
+        JSONArray items = record.getJSONArray("items");
+        assertThat(items).hasSize(1);
+        assertThat(items.getJSONObject(0).getString("name")).isEqualTo(SERVICE_NAME);
+        assertThat(items.getJSONObject(0).getInteger("quantity")).isEqualTo(1);
+        assertThat(items.getJSONObject(0).getBigDecimal("amount")).isEqualByComparingTo("99.00");
+    }
+
+    @Test
+    void deleteShouldOnlyAllowOwnCanceledOrder() {
+        Long orderId = submitOrder(tokenA, SLOT_10_12, 1).getJSONObject("data").getLong("orderId");
+        createdOrderIds.add(orderId);
+
+        // 未取消的订单不能删
+        JSONObject notCanceled = JSON.parseObject(deleteJson("/api/user/order/" + orderId, tokenA).getBody());
+        assertThat(notCanceled.getInteger("code")).isZero();
+        assertThat(notCanceled.getString("msg")).contains("只能删除已取消的订单");
+
+        assertThat(putJson("/api/user/order/cancel/" + orderId, Map.of(), tokenA).getBody().getInteger("code"))
+                .isEqualTo(1);
+
+        // 别人的订单删不掉（统一提示订单不存在，避免越权探测）
+        JSONObject otherUser = JSON.parseObject(deleteJson("/api/user/order/" + orderId, tokenB).getBody());
+        assertThat(otherUser.getInteger("code")).isZero();
+        assertThat(otherUser.getString("msg")).isEqualTo("订单不存在");
+
+        // 本人删除已取消订单：订单与明细一并删除
+        assertThat(JSON.parseObject(deleteJson("/api/user/order/" + orderId, tokenA).getBody()).getInteger("code"))
+                .isEqualTo(1);
+        assertThat(getJson("/api/user/order/" + orderId, tokenA).getBody().getString("msg")).isEqualTo("订单不存在");
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(1) FROM order_detail WHERE order_id = ?", Integer.class, orderId)).isZero();
+
+        // 删除后列表里也不再有该订单
+        assertThat(getJson("/api/user/order/page", tokenA).getBody().getJSONObject("data").getJSONArray("records"))
+                .isEmpty();
+    }
+
+    // ==================== 辅助方法（补充） ====================
+
+    private ResponseEntity<String> deleteJson(String url, String token) {
+        HttpHeaders headers = new HttpHeaders();
+        if (token != null) {
+            headers.set(HttpHeaders.AUTHORIZATION, "Bearer " + token);
+        }
+        return restTemplate.exchange(url, HttpMethod.DELETE, new HttpEntity<>(headers), String.class);
     }
 
     private JSONObject submitOrder(String token, String timeSlot, int quantity) {

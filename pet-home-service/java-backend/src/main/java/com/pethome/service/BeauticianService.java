@@ -6,6 +6,7 @@ import com.pethome.dto.BeauticianAddRequest;
 import com.pethome.dto.BeauticianPageQuery;
 import com.pethome.dto.BeauticianUpdateRequest;
 import com.pethome.entity.Beautician;
+import com.pethome.vo.BeauticianSimpleVO;
 import com.pethome.vo.BeauticianVO;
 
 import java.util.List;
@@ -26,6 +27,11 @@ public interface BeauticianService extends IService<Beautician> {
      * 查询所有在职（status=1）美容师列表
      */
     List<BeauticianVO> listOnDuty();
+
+    /**
+     * 用户端：在职美容师列表（仅返回选择所需字段：id / 姓名 / 头像 / 评分）
+     */
+    List<BeauticianSimpleVO> listOnDutyForUser();
 
     /**
      * 新增美容师，评分默认 5.00，状态默认在职

@@ -291,6 +291,32 @@ class ServiceItemApiTest {
     }
 
     @Test
+    void userPageShouldReturnDescriptionForCard() {
+        String adminToken = adminToken();
+        String description = ITEM_PREFIX + "列表卡片简介";
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("categoryId", catId);
+        body.put("name", ITEM_PREFIX + "带简介服务");
+        body.put("price", "88.00");
+        body.put("petType", "通用");
+        body.put("description", description);
+        body.put("status", 1);
+        Long id = postJson("/api/admin/service/add", body, adminToken).getLong("data");
+
+        // 用户端列表需带 description：列表页卡片要展示简介
+        JSONArray records = getJson("/api/user/service/page?categoryId=" + catId, userToken())
+                .getJSONObject("data").getJSONArray("records");
+        assertThat(records).hasSize(1);
+        JSONObject record = records.getJSONObject(0);
+        assertThat(record.getLong("id")).isEqualTo(id);
+        assertThat(record.getString("description")).isEqualTo(description);
+        // 管理字段依旧不外泄
+        assertThat(record.containsKey("status")).isFalse();
+        assertThat(record.containsKey("createTime")).isFalse();
+    }
+
+    @Test
     void userPageShouldRejectInvalidPriceRange() {
         String userToken = userToken();
 

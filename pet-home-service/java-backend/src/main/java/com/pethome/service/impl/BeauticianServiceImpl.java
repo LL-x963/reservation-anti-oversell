@@ -11,6 +11,7 @@ import com.pethome.dto.BeauticianUpdateRequest;
 import com.pethome.entity.Beautician;
 import com.pethome.mapper.BeauticianMapper;
 import com.pethome.service.BeauticianService;
+import com.pethome.vo.BeauticianSimpleVO;
 import com.pethome.vo.BeauticianVO;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -70,6 +71,31 @@ public class BeauticianServiceImpl extends ServiceImpl<BeauticianMapper, Beautic
                 .stream()
                 .map(this::toVO)
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<BeauticianSimpleVO> listOnDutyForUser() {
+        // 用户端按评分从高到低展示，评分相同按 id 升序，便于用户挑选
+        return lambdaQuery()
+                .eq(Beautician::getStatus, STATUS_ON_DUTY)
+                .orderByDesc(Beautician::getScore)
+                .orderByAsc(Beautician::getId)
+                .list()
+                .stream()
+                .map(this::toSimpleVO)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 转换为用户端精简 VO（不暴露手机号、身份证等隐私字段）
+     */
+    private BeauticianSimpleVO toSimpleVO(Beautician entity) {
+        BeauticianSimpleVO vo = new BeauticianSimpleVO();
+        vo.setId(entity.getId());
+        vo.setName(entity.getName());
+        vo.setAvatar(entity.getAvatar());
+        vo.setScore(entity.getScore());
+        return vo;
     }
 
     @Override

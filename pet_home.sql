@@ -339,6 +339,20 @@ INSERT INTO `user` (`openid`, `name`, `password`, `phone`, `sex`, `create_time`,
 VALUES (NULL, '演示用户', '$2a$10$zq2JYyKkyRhC9B.uV3PMl.kQagEmoxUETvtbiL2i2DWLD8EeapIOi', '13800138000', 0, NOW(), NOW());
 
 -- ============================================================
+-- 演示账号的下单基础数据（H5 提交预约页需要：地址 + 宠物）
+-- 通过手机号关联用户，避免依赖自增主键
+-- ============================================================
+INSERT INTO `address_book` (`user_id`, `consignee`, `sex`, `phone`, `province_name`, `city_name`,
+                            `district_name`, `detail`, `label`, `is_default`, `create_time`, `update_time`)
+SELECT id, '演示用户', 0, '13800138000', '浙江省', '杭州市', '西湖区', '文一西路 100 号 1 单元 101 室', '家', 1, NOW(), NOW()
+FROM `user` WHERE `phone` = '13800138000';
+
+INSERT INTO `pet_profile` (`user_id`, `name`, `breed`, `gender`, `birthday`, `weight`, `vaccine`,
+                           `remark`, `create_time`, `update_time`)
+SELECT id, '布丁', '英国短毛猫', 2, '2023-05-01', 5.20, '已完成三联疫苗', '性格温顺，怕吹风机', NOW(), NOW()
+FROM `user` WHERE `phone` = '13800138000';
+
+-- ============================================================
 -- 说明：
 -- 1. 所有外键均为逻辑关联，未添加 FOREIGN KEY 约束。
 -- 2. 所有业务表均包含 create_time 和 update_time。

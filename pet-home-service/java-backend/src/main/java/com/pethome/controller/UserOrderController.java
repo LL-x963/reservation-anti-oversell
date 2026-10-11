@@ -10,6 +10,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -65,6 +66,15 @@ public class UserOrderController {
     @GetMapping("/{id}")
     public Result detail(@PathVariable @Min(value = 1, message = "订单id不合法") Long id) {
         return Result.success(orderService.detailForUser(id));
+    }
+
+    /**
+     * 删除已取消订单（仅本人）
+     */
+    @DeleteMapping("/{id}")
+    public Result delete(@PathVariable @Min(value = 1, message = "订单id不合法") Long id) {
+        orderService.deleteByUser(id);
+        return Result.success();
     }
 
     /**

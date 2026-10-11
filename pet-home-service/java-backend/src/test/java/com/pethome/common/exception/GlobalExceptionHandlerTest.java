@@ -2,6 +2,7 @@ package com.pethome.common.exception;
 
 import com.pethome.common.Result;
 import com.pethome.dto.BeauticianAddRequest;
+import com.pethome.dto.OrderSubmitRequest;
 import com.pethome.dto.UserLoginRequest;
 import jakarta.validation.Valid;
 import org.junit.jupiter.api.BeforeEach;
@@ -86,6 +87,17 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void orderRemarkTooLongShouldReturnFieldMessage() throws Exception {
+        // 下单备注最长 200 字，超出时提示需带出字段名
+        mockMvc.perform(post("/test/order-submit")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"remark\":\"" + "x".repeat(201) + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.msg").value(org.hamcrest.Matchers.containsString("remark")));
+    }
+
+    @Test
     void missingRequestParameterShouldReturnResultError() throws Exception {
         mockMvc.perform(get("/test/missing-param"))
                 .andExpect(status().isOk())
@@ -157,6 +169,11 @@ class GlobalExceptionHandlerTest {
 
         @PostMapping("/test/not-readable")
         public Result notReadable(@RequestBody UserLoginRequest request) {
+            return Result.success();
+        }
+
+        @PostMapping("/test/order-submit")
+        public Result orderSubmit(@RequestBody @Valid OrderSubmitRequest request) {
             return Result.success();
         }
 
