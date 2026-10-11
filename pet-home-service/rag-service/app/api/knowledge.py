@@ -1,10 +1,19 @@
-"""知识库接口：问答与索引重建。"""
+"""知识库接口：问答与索引重建。
+
+对外契约与 0.3.x 版本完全一致（路径、请求/响应字段、状态码语义均不变）：
+    POST /api/knowledge/ask      请求 question/userId/conversationHistory/petInfo/enabledDocIds
+                                 响应 answer + references[{docId,title,content}]
+    POST /api/knowledge/reindex  请求 documents[{id,title,category,content}]
+                                 响应 documentCount + chunkCount
+新增的错误语义：RAG 引擎不可用（Ollama 未启动 / 超时 / 模型未 pull）统一返回 503。
+"""
 
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.rag.chain import get_rag_chain
+from app.rag.errors import RagEngineError
 from app.rag.vector_store import RebuildInProgressError, get_vector_store
 from app.schemas import AskRequest, AskResponse, ReindexRequest, ReindexResponse
 from app.utils.auth import verify_api_key
@@ -25,6 +34,7 @@ def ask(request: AskRequest) -> AskResponse:
 
     处理流程：校验 X-API-Key -> 按 enabledDocIds 检索 2 个片段 -> 拼接 Prompt
     -> 调用 Ollama 生成答案 -> 末尾拼接免责声明 -> 返回答案与参考来源。
+    引擎不可用时返回 503 + 可读提示（不含内部堆栈）。
     """
     logger.info(
         "收到提问：userId=%s，enabledDocIds=%s，历史消息=%s 条，question=%s",
@@ -36,7 +46,14 @@ def ask(request: AskRequest) -> AskResponse:
 
     # 说明：这里刻意使用同步函数（def 而非 async def），FastAPI 会把它放到线程池执行，
     # 避免向量检索与模型推理这类阻塞操作卡住事件循环。
-    answer, references = get_rag_chain().ask(request)
+    try:
+        answer, references = get_rag_chain().ask(request)
+    except RagEngineError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=exc.public_message,
+        ) from exc
+
     return AskResponse(answer=answer, references=references)
 
 
@@ -45,6 +62,7 @@ def reindex(request: ReindexRequest) -> ReindexResponse:
     """清空向量库并按传入文档全量重建索引（供后端管理端调用）。
 
     后端只需把 enabled=1 的知识库文档（id/title/category/content）传过来即可。
+    并发重建返回 409；向量模型不可用返回 503。
     """
     logger.info("收到重建索引请求：文档 %s 个", len(request.documents))
 
@@ -54,6 +72,11 @@ def reindex(request: ReindexRequest) -> ReindexResponse:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="索引重建正在进行中，请稍后再试",
+        ) from exc
+    except RagEngineError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=exc.public_message,
         ) from exc
 
     return ReindexResponse(document_count=document_count, chunk_count=chunk_count)

@@ -1,4 +1,11 @@
-"""RAG 问答链：检索 -> 拼接 Prompt -> 调用 Ollama -> 返回答案与参考来源。"""
+"""RAG 问答链：检索 -> 拼接 Prompt -> 调用 Ollama -> 返回答案与参考来源（LangChain 1.x）。
+
+与 0.3.x 的差异（已在 langchain-core 1.2.18 + langchain-ollama 1.0.1 上实测）：
+- LCEL（prompt | llm | StrOutputParser）写法保持不变；
+- ChatOllama 新增 reasoning 字段（默认 None）：这里显式传 False，避免推理内容混入答案，
+  同时保留  thinking 标签剥离作为兜底；
+- 生成阶段的异常统一翻译为 RagEngineError（503 语义），堆栈只进日志。
+"""
 
 import logging
 import re
@@ -10,6 +17,7 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import Runnable
 
 from app.config.settings import Settings, get_settings
+from app.rag.errors import translate_engine_error
 from app.rag.prompt import build_prompt_template, format_context, format_history, format_pet_info
 from app.rag.vector_store import VectorStoreManager, get_vector_store
 from app.schemas import AskRequest, Reference
@@ -33,17 +41,31 @@ class RagChain:
         """构建 Ollama 对话模型（初始化时不发请求，首次调用才连接）。"""
         from langchain_ollama import ChatOllama
 
-        logger.info("初始化对话模型：Ollama(%s) @ %s", self._settings.llm_model, self._settings.ollama_base_url)
+        extra: dict = {}
+        if self._settings.llm_num_predict is not None and self._settings.llm_num_predict >= 0:
+            extra["num_predict"] = self._settings.llm_num_predict
+
+        logger.info(
+            "初始化对话模型：Ollama(%s) @ %s，temperature=%s，reasoning=%s",
+            self._settings.llm_model,
+            self._settings.ollama_base_url,
+            self._settings.llm_temperature,
+            self._settings.llm_reasoning,
+        )
         return ChatOllama(
             model=self._settings.llm_model,
             base_url=self._settings.ollama_base_url,
             temperature=self._settings.llm_temperature,
+            # langchain-ollama 1.0 起支持：控制推理内容是否进入答案
+            reasoning=self._settings.llm_reasoning,
+            **extra,
         )
 
     def ask(self, request: AskRequest) -> tuple[str, list[Reference]]:
         """执行一次问答。
 
         :return: (回答内容（末尾已拼免责声明）, 参考来源列表)
+        :raises RagEngineError: Ollama 不可用 / 超时 / 模型未 pull
         """
         # 1. 检索（已按 enabledDocIds 过滤）
         documents = self._vector_store.search(
@@ -58,14 +80,22 @@ class RagChain:
             return self._with_disclaimer(self._settings.no_context_answer), []
 
         # 3. 组装 Prompt：系统约束 + 宠物信息 + 最近 N 轮历史 + 知识片段 + 问题
-        answer = self._chain.invoke(
-            {
-                "pet_info": format_pet_info(request.pet_info),
-                "history": format_history(request.conversation_history, self._settings.history_max_rounds),
-                "context": format_context(documents),
-                "question": request.question,
-            }
-        )
+        try:
+            answer = self._chain.invoke(
+                {
+                    "pet_info": format_pet_info(request.pet_info),
+                    "history": format_history(request.conversation_history, self._settings.history_max_rounds),
+                    "context": format_context(documents),
+                    "question": request.question,
+                }
+            )
+        except Exception as exc:
+            raise translate_engine_error(
+                exc,
+                base_url=self._settings.ollama_base_url,
+                model=self._settings.llm_model,
+                stage="生成回答",
+            ) from exc
 
         # 4. 清理（剥离推理标签）并拼接免责声明
         answer = self._sanitize(answer)

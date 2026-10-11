@@ -31,12 +31,24 @@ async def lifespan(_: FastAPI):
     """启动 / 关闭时打印关键配置，便于排查环境问题。"""
     logger.info("=" * 64)
     logger.info("%s v%s 启动中", settings.app_name, settings.app_version)
-    logger.info("对话模型：%s @ %s", settings.llm_model, settings.ollama_base_url)
-    logger.info("向量模型：%s", _embedding_model_desc())
-    logger.info("Chroma 持久化目录：%s，collection：%s", settings.chroma_persist_dir, settings.chroma_collection)
     logger.info(
-        "检索 top_k=%s，切分 chunk_size=%s / overlap=%s，历史轮数=%s",
+        "对话模型：%s @ %s（temperature=%s，reasoning=%s）",
+        settings.llm_model,
+        settings.ollama_base_url,
+        settings.llm_temperature,
+        settings.llm_reasoning,
+    )
+    logger.info("向量模型：%s", _embedding_model_desc())
+    logger.info(
+        "Chroma 持久化目录：%s，collection：%s，分批入库 %s 条",
+        settings.chroma_persist_dir,
+        settings.chroma_collection,
+        settings.index_batch_size,
+    )
+    logger.info(
+        "检索 top_k=%s，相关性阈值=%s（0 表示关闭），切分 chunk_size=%s / overlap=%s，历史轮数=%s",
         settings.retrieve_top_k,
+        settings.retrieve_score_threshold,
         settings.chunk_size,
         settings.chunk_overlap,
         settings.history_max_rounds,
@@ -47,10 +59,17 @@ async def lifespan(_: FastAPI):
     logger.info("%s 已停止", settings.app_name)
 
 
+def _embedding_model_name() -> str:
+    """当前生效的向量模型名。"""
+    if settings.embedding_provider.lower() == "huggingface":
+        return settings.hf_embedding_model
+    return settings.ollama_embedding_model
+
+
 def _embedding_model_desc() -> str:
     """向量模型描述（用于启动日志）。"""
-    if settings.embedding_provider == "huggingface":
-        return f"huggingface（{settings.hf_embedding_model}）"
+    if settings.embedding_provider.lower() == "huggingface":
+        return f"huggingface（{settings.hf_embedding_model}，device={settings.embedding_device}）"
     return f"ollama（{settings.ollama_embedding_model}）"
 
 
@@ -69,8 +88,13 @@ def health() -> dict:
     return {
         "status": "ok",
         "app": settings.app_name,
+        "version": settings.app_version,
         "llmModel": settings.llm_model,
         "embeddingProvider": settings.embedding_provider,
+        "embeddingModel": _embedding_model_name(),
+        "ollamaBaseUrl": settings.ollama_base_url,
+        "chromaCollection": settings.chroma_collection,
+        "retrieveTopK": settings.retrieve_top_k,
     }
 
 
