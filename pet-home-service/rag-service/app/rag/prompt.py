@@ -1,11 +1,4 @@
-"""Prompt 模板与文本拼装。
-
-最终发给模型的 Prompt 由四部分构成：
-
-    [system] 系统约束 + 宠物信息
-    [history] 最近 N 轮对话历史（一问一答为一轮）
-    [human]  知识库片段 + 用户问题
-"""
+"""Prompt 模板与文本拼装"""
 
 from langchain_core.documents import Document
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage

@@ -1,22 +1,4 @@
-"""服务配置。
-
-所有配置项均支持通过环境变量覆盖（变量名 = 字段名大写，不区分大小写），例如::
-
-    RAG_API_KEY=xxx
-    EMBEDDING_PROVIDER=ollama
-    OLLAMA_BASE_URL=http://localhost:11434
-    LLM_MODEL=deepseek-r1:1.5b
-    CHROMA_PERSIST_DIR=./chroma_db
-
-也可以复制 ``.env.example`` 为 ``.env`` 进行配置（环境变量优先级高于 .env 文件）。
-
-向量化默认走 Ollama（bge-m3），因为该路线只依赖 requirements.txt；
-若要用 HuggingFace 的 bge-small-zh，需要额外安装 torch 与 sentence-transformers，
-并把 ``embedding_provider`` 改为 huggingface。
-
-安全约定：仓库中不保存任何真实密钥，``RAG_API_KEY`` 默认值为空，
-必须通过环境变量或本地 .env 注入。
-"""
+"""服务配置"""
 
 from functools import lru_cache
 from typing import Literal

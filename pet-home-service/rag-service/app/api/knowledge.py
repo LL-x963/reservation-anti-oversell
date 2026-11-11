@@ -1,12 +1,4 @@
-"""知识库接口：问答与索引重建。
-
-对外契约与 0.3.x 版本完全一致（路径、请求/响应字段、状态码语义均不变）：
-    POST /api/knowledge/ask      请求 question/userId/conversationHistory/petInfo/enabledDocIds
-                                 响应 answer + references[{docId,title,content}]
-    POST /api/knowledge/reindex  请求 documents[{id,title,category,content}]
-                                 响应 documentCount + chunkCount
-新增的错误语义：RAG 引擎不可用（Ollama 未启动 / 超时 / 模型未 pull）统一返回 503。
-"""
+"""知识库接口：问答与索引重建"""
 
 import logging
 

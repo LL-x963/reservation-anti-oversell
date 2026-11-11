@@ -1,17 +1,4 @@
-"""Chroma 向量库管理（LangChain 1.x）。
-
-职责：
-1. 提供向量模型（默认 ollama/bge-m3；可选 huggingface/bge-small-zh）
-2. 文档切分与分批入库
-3. 按 enabledDocIds 过滤后检索 top_k 个相关片段（可选相关性阈值）
-4. 重建索引：清空后全量重建（reset_collection + 互斥锁，防并发破坏 collection）
-
-与 0.3.x 的差异（已在 langchain-chroma 1.1.0 + chromadb 1.5.9 上实测）：
-- Chroma 构造参数（collection_name / embedding_function / persist_directory /
-  collection_metadata）保持不变；
-- 清空 collection 改用官方 reset_collection()，不再自己开 chromadb 客户端；
-- similarity_search(query, k, filter) 的 filter 语义不变，docId $in 过滤实测生效。
-"""
+"""Chroma 向量库管理（LangChain 1.x）"""
 
 import importlib.util
 import logging

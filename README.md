@@ -18,9 +18,6 @@
 - [评测结果对比](#评测结果对比)
 - [测试](#测试)
 - [目录结构](#目录结构)
-- [开发路线](#开发路线)
-- [常见问题](#常见问题)
-- [许可证](#许可证)
 
 ## 架构
 
@@ -181,7 +178,7 @@ npm install && npm run dev    # http://localhost:5173
 | `LOG_LEVEL` | `INFO` | 日志级别 |
 | `RAG_API_KEY` | 空（必须注入） | 与后端 `PETHOME_RAG_API_KEY` 一致，请求头 `X-API-Key` |
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama 地址 |
-| `LLM_MODEL` | `deepseek-r1:1.5b` | 对话模型 |
+| `LLM_MODEL` | `deepseek-r1:7b` | 对话模型 |
 | `LLM_TEMPERATURE` | `0.1` | 生成温度 |
 | `OLLAMA_EMBEDDING_MODEL` | `bge-m3` | 向量模型 |
 | `EMBEDDING_PROVIDER` | `ollama` | `ollama` / `huggingface` |
@@ -349,52 +346,4 @@ pet-home/
         └── requirements.txt
 ```
 
-## 开发路线
 
-- [x] 用户端 H5 全流程（登录 / 浏览 / 购物车 / 下单 / 支付 / 订单 / 宠物 / 地址）
-- [x] 管理后台（服务、分类、美容师、排班、订单、统计、知识库、上传）
-- [x] 订单超时自动取消（RabbitMQ 延迟队列 + 死信）
-- [x] 本地 RAG 知识库问答（检索 + 生成 + 参考来源 + 阈值拦截）
-- [x] 后端 396 个自动化测试覆盖核心链路
-- [ ] 接入真实微信支付 / 支付宝并对账
-- [ ] 对象存储（OSS）替换本地上传
-- [ ] 向量库迁移到独立服务并支持增量索引
-- [ ] 管理端权限细分（RBAC）与操作审计
-- [ ] 部署编排（Docker Compose / K8s）与 CI
-
-## 常见问题
-
-**1. 问答接口返回 503**
-
-`rag-service` 连不上 Ollama。确认 `ollama serve` 已启动，模型已 `ollama pull`，并检查 `OLLAMA_BASE_URL`。
-服务端会把具体阶段写入日志，对外只返回可读提示。
-
-**2. 问答总是返回「知识库中暂未收录相关内容」**
-
-三种常见原因：索引未建立（先执行一次重建索引）、`enabledDocIds` 为空或与实际文档 id 不匹配、
-`RETRIEVE_SCORE_THRESHOLD` 过高导致片段被过滤（可临时设为 `0` 验证）。
-
-**3. 后端启动失败，提示安全自检未通过**
-
-`prod` profile 要求 `PETHOME_JWT_SECRET`、数据库密码、RAG Key 等显式注入；本地开发请使用 `dev` profile。
-
-**4. 端口被占用**
-
-后端 `SERVER_PORT`、RAG `SERVER_PORT`、前端 `vite.config.js` 中的 `server.port` 均可调整。
-
-**5. 上传图片后访问 404**
-
-确认后端 `PETHOME_UPLOAD_BASE_DIR` 指向的目录可写，且静态资源映射 `/upload/**` 未被反向代理拦截。
-
-**6. 首次问答特别慢**
-
-向量模型与对话模型均为懒加载，首次调用需要加载模型；CPU 环境单次生成约 15~25s 属正常范围。
-
-**7. 所有请求都返回 401「非法的 API Key」**
-
-`RAG_API_KEY` 没有配置（默认值为空）。请复制 `.env.example` 为 `.env` 并设置 `RAG_API_KEY`，
-同时保证后端 `PETHOME_RAG_API_KEY` 与之一致。
-
-## 许可证
-
-本项目基于 [MIT License](./LICENSE) 开源。

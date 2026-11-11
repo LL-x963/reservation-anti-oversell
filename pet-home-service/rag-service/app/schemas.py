@@ -1,7 +1,4 @@
-"""HTTP 请求 / 响应数据模型。
-
-对外字段保持与接口约定一致的 camelCase（通过 alias 映射），Python 内部使用 snake_case。
-"""
+"""HTTP 请求 / 响应数据模型"""
 
 from pydantic import BaseModel, ConfigDict, Field
 

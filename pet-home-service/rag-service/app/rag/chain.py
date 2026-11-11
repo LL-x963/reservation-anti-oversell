@@ -1,11 +1,4 @@
-"""RAG 问答链：检索 -> 拼接 Prompt -> 调用 Ollama -> 返回答案与参考来源（LangChain 1.x）。
-
-与 0.3.x 的差异（已在 langchain-core 1.2.18 + langchain-ollama 1.0.1 上实测）：
-- LCEL（prompt | llm | StrOutputParser）写法保持不变；
-- ChatOllama 新增 reasoning 字段（默认 None）：这里显式传 False，避免推理内容混入答案，
-  同时保留  thinking 标签剥离作为兜底；
-- 生成阶段的异常统一翻译为 RagEngineError（503 语义），堆栈只进日志。
-"""
+"""RAG 问答链：检索 -> 拼接 Prompt -> 调用 Ollama -> 返回答案与参考来源（LangChain 1.x）"""
 
 import logging
 import re
