@@ -34,5 +34,6 @@ build/
 ### Logs ###
 *.log
 
-### 本地上传文件 ###
-upload/
+### 本地上传文件（保留目录占位，实际图片不入库） ###
+upload/*
+!upload/.gitkeep
