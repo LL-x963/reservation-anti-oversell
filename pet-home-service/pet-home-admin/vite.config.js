@@ -3,8 +3,8 @@ import { fileURLToPath, URL } from 'node:url'
 import vue from '@vitejs/plugin-vue'
 import { defineConfig } from 'vite'
 
-// 后端服务地址（java-backend 默认 8080）
-const BACKEND_TARGET = 'http://localhost:8080'
+// 后端服务地址（java-backend 默认 8080，可用环境变量 VITE_BACKEND_TARGET 覆盖）
+const BACKEND_TARGET = process.env.VITE_BACKEND_TARGET || 'http://localhost:8080'
 
 export default defineConfig({
   plugins: [vue()],

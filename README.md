@@ -212,6 +212,24 @@ npm install && npm run dev    # http://localhost:5173
 
 > 仓库不包含任何真实密钥。`.env`、`*.log`、`chroma_db/`、`upload/`、`node_modules/`、`target/` 等均已在 `.gitignore` 中排除。
 
+### 安全说明
+
+仓库中出现的下列值**均为本地演示占位符，不是真实凭据**，禁止用于任何生产环境：
+
+| 值 | 出现位置 | 说明 |
+| --- | --- | --- |
+| `123456` | `db/dev` 演示账号、集成测试用例 | 本地演示用户 / 测试自建员工的口令 |
+| `pethome-rag-key` | `application-dev.yaml`、`.env.example`、冒烟测试 | 本地联调用的 RAG Key 占位符 |
+| `guest / guest` | `application-dev.yaml` 的 RabbitMQ 默认值 | 官方默认账号，仅本地 |
+| `pethome-dev-only-jwt-secret-...` | `application-dev.yaml` | 仅 dev 生效的签名密钥占位符 |
+
+生产部署必须显式注入：`PETHOME_JWT_SECRET`（≥ 32 字节）、`PETHOME_MYSQL_PASSWORD`、
+`PETHOME_REDIS_PASSWORD`、`PETHOME_RABBITMQ_PASSWORD`、`PETHOME_RAG_API_KEY`、
+`PETHOME_PAYMENT_CALLBACK_SECRET`，并将 `SPRING_PROFILES_ACTIVE` 设为 `prod`
+（此时 `PETHOME_ALLOW_INSECURE_DEV_CONFIG` 必须为 `false`，否则启动自检会拒绝启动）。
+
+`rag-service` 的 `RAG_API_KEY` 默认值为空，未注入时所有接口返回 401，避免出现"无鉴权可用"的默认配置。
+
 ## 接口调用示例
 
 ### 知识库问答

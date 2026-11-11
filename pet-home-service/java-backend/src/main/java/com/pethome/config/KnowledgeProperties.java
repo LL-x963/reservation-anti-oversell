@@ -19,8 +19,8 @@ public class KnowledgeProperties {
     /** RAG 服务地址（pet-home-service/rag-service） */
     private String baseUrl = "http://localhost:8000";
 
-    /** 与 rag-service 的 RAG_API_KEY 保持一致 */
-    private String apiKey = "pethome-rag-key";
+    /** 与 rag-service 的 RAG_API_KEY 保持一致；默认空，由 pethome.knowledge.api-key 或环境变量注入 */
+    private String apiKey = "";
 
     /** 存放 API Key 的请求头名称 */
     private String apiKeyHeader = "X-API-Key";
