@@ -50,7 +50,13 @@ public class PaymentReconcileJob {
         for (PaymentRecord record : paidRecords) {
             ServiceOrder order = serviceOrderMapper.selectById(record.getOrderId());
             if (order == null) {
-                log.error("对账发现支付流水对应订单不存在: orderId={}, tradeNo={}",
+                // 订单已被删除（例如用户删除已取消订单、测试数据清理）：
+                // 关闭流水避免每轮对账重复扫描并刷 error 日志，同时保留一条 warn 供人工核对
+                PaymentRecord close = new PaymentRecord();
+                close.setId(record.getId());
+                close.setStatus(PaymentService.STATUS_CLOSED);
+                paymentRecordMapper.updateById(close);
+                log.warn("对账发现支付流水对应订单不存在，已关闭该流水: orderId={}, tradeNo={}",
                         record.getOrderId(), record.getTradeNo());
                 continue;
             }
