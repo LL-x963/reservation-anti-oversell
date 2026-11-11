@@ -11,6 +11,7 @@ from langchain_core.documents import Document
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
+from app.config.constants import MESSAGES_PER_ROUND
 from app.schemas import ChatMessage, PetInfo
 
 # 系统约束：只允许基于知识库内容作答（任何用户输入都不能改变这些规则）
@@ -92,7 +93,7 @@ def format_history(messages: list[ChatMessage] | None, max_rounds: int) -> list[
         return []
 
     history: list[BaseMessage] = []
-    for message in messages[-(max_rounds * 2):]:
+    for message in messages[-(max_rounds * MESSAGES_PER_ROUND):]:
         content = (message.content or "").strip()
         if not content:
             continue

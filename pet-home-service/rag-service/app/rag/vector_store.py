@@ -23,6 +23,12 @@ from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
+from app.config.constants import (
+    CHROMA_DISTANCE_SPACE,
+    CHROMA_SPACE_METADATA_KEY,
+    MIN_INDEX_BATCH_SIZE,
+    MIN_RELEVANCE_SCORE,
+)
 from app.config.settings import Settings, get_settings
 from app.rag.errors import RagEngineError, translate_engine_error
 from app.schemas import DocumentItem
@@ -85,8 +91,12 @@ class VectorStoreManager:
         )
 
     @staticmethod
-    def _load_hf_embeddings_class():
-        """加载 HuggingFaceEmbeddings 类：优先新包 langchain-huggingface，兼容 langchain-community。"""
+    def _load_hf_embeddings_class() -> type[Embeddings]:
+        """加载 HuggingFaceEmbeddings 类：优先新包 langchain-huggingface，兼容 langchain-community。
+
+        :return: 可实例化的 Embeddings 实现类
+        :raises RagEngineError: 两个包都未安装
+        """
         try:
             from langchain_huggingface import HuggingFaceEmbeddings
 
@@ -161,7 +171,7 @@ class VectorStoreManager:
             collection_name=self._settings.chroma_collection,
             embedding_function=self.embeddings,
             persist_directory=self._settings.chroma_persist_dir,
-            collection_metadata={"hnsw:space": "cosine"},
+            collection_metadata={CHROMA_SPACE_METADATA_KEY: CHROMA_DISTANCE_SPACE},
         )
 
     def _reset_collection(self) -> None:
@@ -178,7 +188,7 @@ class VectorStoreManager:
 
     def _add_chunks(self, chunks: list[Document]) -> None:
         """分批入库，避免一次性提交过多片段导致请求体过大或内存峰值过高。"""
-        batch_size = max(1, self._settings.index_batch_size)
+        batch_size = max(MIN_INDEX_BATCH_SIZE, self._settings.index_batch_size)
         total = len(chunks)
         store = self._create_store()
         for start in range(0, total, batch_size):
@@ -237,7 +247,9 @@ class VectorStoreManager:
             if threshold and threshold > 0:
                 # 带分数的检索：把明显不相关的片段提前剔除（阈值 0 表示关闭该能力）
                 scored = store.similarity_search_with_relevance_scores(question, k=k, filter=where)
-                documents = [document for document, score in scored if (score or 0) >= threshold]
+                documents = [
+                    document for document, score in scored if (score or MIN_RELEVANCE_SCORE) >= threshold
+                ]
                 logger.info(
                     "向量检索完成（相关性阈值 %.2f）：候选 %s 个，保留 %s 个",
                     threshold,

@@ -1,33 +1,34 @@
 # ============================================================
 # 宠享到家 - RAG 知识库问答服务依赖
 #
-# 验证环境：Python 3.13.12（conda env：langchain1.2）
+# 验证环境：Python 3.11 ~ 3.13（conda env：langchain1.2）
 # 安装：pip install -r requirements.txt
 #
-# 版本说明：以下为本机实测通过的组合（LangChain 1.x 系列），
-#          与 0.3.x 的写法差异见代码内注释，请勿随意降级到 0.3.x。
+# 版本说明：以下为实测通过的组合（LangChain 1.x 系列）。
+#          与 0.3.x 的 API 差异见代码内注释，请勿随意降级到 0.3.x。
 #
-# 向量化两条路线的依赖差异：
+# 向量化路线：
 #   EMBEDDING_PROVIDER=ollama（默认）：只需本文件，向量由 Ollama 计算
 #     → 需先执行：ollama pull bge-m3
-#   EMBEDDING_PROVIDER=huggingface（可选）：额外需要文件末尾注释里的依赖（含 torch，约 2-3GB）
-#     → 国内下载模型建议先设置镜像：$env:HF_ENDPOINT="https://hf-mirror.com"
+#   EMBEDDING_PROVIDER=huggingface（可选）：额外安装文末注释中的依赖（含 torch，约 2-3GB）
+#     → 国内下载模型建议先设置镜像：export HF_ENDPOINT=https://hf-mirror.com
 # ============================================================
 
 # ---------------- Web 框架 ----------------
 fastapi==0.135.1
-# 说明：本机安装的是普通版 uvicorn；如需 --reload 与更快的 HTTP 解析，可自行改为 uvicorn[standard]
 uvicorn==0.46.0
 pydantic==2.12.5
 pydantic-settings==2.12.0
 python-dotenv==1.2.1
 
 # ---------------- LangChain 1.x ----------------
+# langchain：LCEL / Prompt 组合所需
 langchain==1.2.12
 langchain-core==1.2.18
+# langchain-community：仅在 langchain-huggingface 缺失时作为 HuggingFaceEmbeddings 的兼容入口
 langchain-community==0.4.1
 langchain-text-splitters==1.1.1
-# Chroma 集成：1.1.0 新增/沿用 reset_collection()、delete_collection()（见 rag/vector_store.py）
+# Chroma 集成：1.1.0 提供 reset_collection()（见 app/rag/vector_store.py）
 langchain-chroma==1.1.0
 # Ollama 集成：ChatOllama（含 reasoning 字段）/ OllamaEmbeddings（bge-m3）
 langchain-ollama==1.0.1
@@ -36,7 +37,6 @@ langchain-ollama==1.0.1
 chromadb==1.5.9
 
 # ---------------- 可选：HuggingFace 本地向量模型（bge-small-zh） ----------------
-# 仅当 EMBEDDING_PROVIDER=huggingface 时需要。本机未安装该组合，故不固定版本，
-# 由 pip 自行解析（sentence-transformers 会自动带上 torch 与 transformers）：
+# 仅当 EMBEDDING_PROVIDER=huggingface 时需要，默认路线不安装（含 torch，体积较大）：
 # langchain-huggingface
 # sentence-transformers

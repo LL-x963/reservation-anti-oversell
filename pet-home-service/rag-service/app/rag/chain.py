@@ -16,6 +16,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import Runnable
 
+from app.config.constants import NO_TOKEN_LIMIT, UNKNOWN_DOC_ID
 from app.config.settings import Settings, get_settings
 from app.rag.errors import translate_engine_error
 from app.rag.prompt import build_prompt_template, format_context, format_history, format_pet_info
@@ -42,7 +43,8 @@ class RagChain:
         from langchain_ollama import ChatOllama
 
         extra: dict = {}
-        if self._settings.llm_num_predict is not None and self._settings.llm_num_predict >= 0:
+        # num_predict 为 -1（NO_TOKEN_LIMIT）时不传，交由 Ollama 使用默认上限
+        if self._settings.llm_num_predict is not None and self._settings.llm_num_predict > NO_TOKEN_LIMIT:
             extra["num_predict"] = self._settings.llm_num_predict
 
         logger.info(
@@ -126,7 +128,7 @@ class RagChain:
             metadata = document.metadata or {}
             references.append(
                 Reference(
-                    doc_id=int(metadata.get("docId") or 0),
+                    doc_id=int(metadata.get("docId") or UNKNOWN_DOC_ID),
                     title=str(metadata.get("title") or ""),
                     content=document.page_content.strip(),
                 )

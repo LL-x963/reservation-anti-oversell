@@ -1,6 +1,6 @@
 """服务配置。
 
-所有配置项均支持通过环境变量覆盖（变量名 = 字段名大写，不区分大小写），例如：
+所有配置项均支持通过环境变量覆盖（变量名 = 字段名大写，不区分大小写），例如::
 
     RAG_API_KEY=xxx
     EMBEDDING_PROVIDER=ollama
@@ -8,11 +8,14 @@
     LLM_MODEL=deepseek-r1:1.5b
     CHROMA_PERSIST_DIR=./chroma_db
 
-也可以复制 .env.example 为 .env 进行配置（环境变量优先级高于 .env 文件）。
+也可以复制 ``.env.example`` 为 ``.env`` 进行配置（环境变量优先级高于 .env 文件）。
 
-向量化默认走 Ollama（bge-m3），因为该路线只依赖本 requirements.txt；
+向量化默认走 Ollama（bge-m3），因为该路线只依赖 requirements.txt；
 若要用 HuggingFace 的 bge-small-zh，需要额外安装 torch 与 sentence-transformers，
-并把 embedding_provider 改为 huggingface。
+并把 ``embedding_provider`` 改为 huggingface。
+
+安全约定：仓库中不保存任何真实密钥，``RAG_API_KEY`` 默认值为空，
+必须通过环境变量或本地 .env 注入。
 """
 
 from functools import lru_cache
@@ -20,9 +23,11 @@ from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.config.constants import NO_TOKEN_LIMIT
+
 
 class Settings(BaseSettings):
-    """RAG 服务配置项。"""
+    """RAG 服务配置项（全部可由环境变量覆盖）。"""
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -35,10 +40,12 @@ class Settings(BaseSettings):
     app_name: str = "pet-home-rag-service"
     app_version: str = "1.1.0"
     log_level: str = "INFO"
+    # 监听端口（环境变量 SERVER_PORT），便于本地多实例调试与容器化部署
+    server_port: int = 8000
 
     # ---------------- 鉴权 ----------------
-    # 调用方需在请求头 X-API-Key 中携带该值
-    rag_api_key: str = "pethome-rag-key"
+    # 调用方需在请求头 X-API-Key 中携带该值；默认空表示未配置，必须由环境注入
+    rag_api_key: str = ""
 
     # ---------------- Ollama（对话模型 + 向量模型） ----------------
     ollama_base_url: str = "http://localhost:11434"
@@ -47,10 +54,10 @@ class Settings(BaseSettings):
     llm_temperature: float = 0.1
     # 是否保留推理模型的思考输出：
     #   False（默认）交给 langchain-ollama 的 reasoning 参数处理，不把 think 内容混进答案；
-    #   代码里仍保留 think 标签剥离作为兜底（见 rag/chain.py）。
+    #   代码里仍保留 think 标签剥离作为兜底（见 app/rag/chain.py）。
     llm_reasoning: bool = False
     # 单次生成的最大 token 数；-1 表示不限制（Ollama 默认值）
-    llm_num_predict: int = -1
+    llm_num_predict: int = NO_TOKEN_LIMIT
 
     # ---------------- 向量模型 ----------------
     # ollama：走 Ollama 的 embedding 接口（默认，依赖轻，无需 torch）
@@ -71,7 +78,7 @@ class Settings(BaseSettings):
     # 与问题最相关的片段数量
     retrieve_top_k: int = 2
     # 相关性阈值（0~1，0 表示不过滤）：命中片段相似度低于该值时视为无可用知识。
-    # 作用：把「与知识库无关」的提问（模型 1.5B 不一定会听话拒答）确定性地拦在模型之外。
+    # 作用：把「与知识库无关」的提问（1.5B 小模型不一定会听话拒答）确定性地拦在模型之外。
     # 默认 0.5 来自 bge-m3 实测：宠物相关提问 top1 分数 0.73~0.81，无关提问 0.30~0.38，
     # 分界取 0.5 两侧都有余量；若发现正常提问被误拦，可调低该值。
     retrieve_score_threshold: float = 0.5
@@ -91,5 +98,8 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    """获取全局唯一的配置实例（进程内缓存）。"""
+    """获取全局唯一的配置实例（进程内缓存）。
+
+    :return: 解析完成的配置对象；同一进程内多次调用返回同一实例。
+    """
     return Settings()
