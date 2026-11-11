@@ -15,8 +15,6 @@
 - [快速开始](#快速开始)
 - [环境变量说明](#环境变量说明)
 - [接口调用示例](#接口调用示例)
-- [评测结果对比](#评测结果对比)
-- [测试](#测试)
 - [目录结构](#目录结构)
 
 ## 架构
@@ -71,7 +69,7 @@ flowchart LR
 | 存储 | MySQL 8、Redis、RabbitMQ（延迟队列 + 死信） |
 | 用户端 | Vue 3.5、Vite 6、Element Plus、vue-router、axios |
 | 管理端 | Vue 3.5、Vite 6、Element Plus、ECharts、Pinia |
-| AI | Python 3.11~3.13、FastAPI、LangChain 1.x、Chroma 1.5、Ollama（bge-m3 / deepseek-r1:1.5b） |
+| AI | Python 3.11~3.13、FastAPI、LangChain 1.x、Chroma 1.5、Ollama（bge-m3 / deepseek-r1:7b） |
 | 测试 | JUnit 5 + AssertJ（后端 396 个用例）、Python `unittest` 冒烟测试 |
 
 ## 功能清单
@@ -108,7 +106,7 @@ flowchart LR
 ## 环境准备
 
 | 依赖 | 版本要求 | 说明 |
-| --- | --- | --- |
+| --- | --- | :-- |
 | JDK | 17+ | 后端编译运行 |
 | Maven | 3.9+ | 后端构建 |
 | Node.js | 18+ | 两个前端工程 |
@@ -116,7 +114,7 @@ flowchart LR
 | MySQL | 8.x | 库名 `pet_home`，Flyway 自动建表 |
 | Redis | 6+ | 登录态、限流 |
 | RabbitMQ | 3.9+ | 订单延迟取消 |
-| Ollama | 最新 | 需 `ollama pull bge-m3` 与 `ollama pull deepseek-r1:1.5b` |
+| Ollama | 最新 | 需 `ollama pull bge-m3` 与 `ollama pull deepseek-r1:7b` |
 
 > AI 功能是可选能力：不启动 `rag-service` 时其余业务功能不受影响，仅知识库问答接口不可用。
 
@@ -188,8 +186,6 @@ npm install && npm run dev    # http://localhost:5173
 | `CHUNK_SIZE` / `CHUNK_OVERLAP` | `500` / `50` | 文本切分参数 |
 | `HISTORY_MAX_ROUNDS` | `3` | 携带的历史轮数 |
 
-完整清单见 `pet-home-service/rag-service/.env.example`。
-
 ### java-backend（系统环境变量）
 
 | 变量 | 说明 |
@@ -204,28 +200,6 @@ npm install && npm run dev    # http://localhost:5173
 | `PETHOME_PAYMENT_CALLBACK_SECRET` | 支付回调验签密钥 |
 | `PETHOME_UPLOAD_BASE_DIR` | 上传文件目录（默认 `./upload`） |
 | `PETHOME_CORS_ALLOWED_ORIGINS` | 允许跨域来源，逗号分隔 |
-
-完整清单见 `pet-home-service/java-backend/.env.example`。
-
-> 仓库不包含任何真实密钥。`.env`、`*.log`、`chroma_db/`、`upload/`、`node_modules/`、`target/` 等均已在 `.gitignore` 中排除。
-
-### 安全说明
-
-仓库中出现的下列值**均为本地演示占位符，不是真实凭据**，禁止用于任何生产环境：
-
-| 值 | 出现位置 | 说明 |
-| --- | --- | --- |
-| `123456` | `db/dev` 演示账号、集成测试用例 | 本地演示用户 / 测试自建员工的口令 |
-| `pethome-rag-key` | `application-dev.yaml`、`.env.example`、冒烟测试 | 本地联调用的 RAG Key 占位符 |
-| `guest / guest` | `application-dev.yaml` 的 RabbitMQ 默认值 | 官方默认账号，仅本地 |
-| `pethome-dev-only-jwt-secret-...` | `application-dev.yaml` | 仅 dev 生效的签名密钥占位符 |
-
-生产部署必须显式注入：`PETHOME_JWT_SECRET`（≥ 32 字节）、`PETHOME_MYSQL_PASSWORD`、
-`PETHOME_REDIS_PASSWORD`、`PETHOME_RABBITMQ_PASSWORD`、`PETHOME_RAG_API_KEY`、
-`PETHOME_PAYMENT_CALLBACK_SECRET`，并将 `SPRING_PROFILES_ACTIVE` 设为 `prod`
-（此时 `PETHOME_ALLOW_INSECURE_DEV_CONFIG` 必须为 `false`，否则启动自检会拒绝启动）。
-
-`rag-service` 的 `RAG_API_KEY` 默认值为空，未注入时所有接口返回 401，避免出现"无鉴权可用"的默认配置。
 
 ## 接口调用示例
 
@@ -279,37 +253,6 @@ curl -X POST http://localhost:8080/api/user/login \
 # 3) 携带 token 查询地址簿
 curl http://localhost:8080/api/user/address/list \
   -H "Authorization: Bearer <token>"
-```
-
-## 评测结果对比
-
-以下为本地单机 CPU 环境（Ollama + bge-m3 + deepseek-r1:1.5b）的实测记录，用于说明参数取舍，
-非跨机器基准数据：
-
-| 场景 | 检索配置 | 参考来源 | 响应耗时 | 行为差异 |
-| --- | --- | --- | --- | --- |
-| 相关提问（猫咪洗澡频率） | `top_k=2`，阈值 `0.5` | 2 条 | 约 16s | 命中知识片段，答案带来源与免责声明 |
-| 相关提问（同问题，历史轮数 3） | `top_k=2`，阈值 `0.5`，`HISTORY_MAX_ROUNDS=3` | 2 条 | 约 16~23s | 追问可沿用上下文，首轮耗时略高于单轮 |
-| 越界提问（与宠物无关） | `top_k=2`，阈值 `0.5` | 0 条 | < 1s | 相似度低于阈值直接走兜底话术，不调用模型 |
-| 越界提问（阈值关闭 `0`） | `top_k=2`，阈值 `0` | 1~2 条 | 约 15s | 仍会召回弱相关片段，只能依赖 Prompt 约束拒答 |
-| 知识库范围为空 | `enabledDocIds=[]` | 0 条 | < 1s | 跳过检索，直接返回兜底话术 |
-
-相关性分数实测区间（bge-m3）：宠物相关问题首条片段 0.73~0.81，无关问题 0.30~0.38，
-因此阈值取 `0.5` 时两侧均有余量；若业务问题常被误拦，可下调 `RETRIEVE_SCORE_THRESHOLD`。
-
-## 测试
-
-```bash
-# 后端全量测试（需要本地 MySQL / Redis / RabbitMQ 可用）
-cd pet-home-service/java-backend
-mvn test
-
-# RAG 服务冒烟测试（先启动服务；零第三方依赖）
-cd pet-home-service/rag-service
-python tests/test_smoke.py
-
-# 需要覆盖真实模型链路时（耗时约 20s）
-RAG_SMOKE_ASK=1 python tests/test_smoke.py
 ```
 
 ## 目录结构
