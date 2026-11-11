@@ -26,6 +26,7 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -124,6 +125,16 @@ class FileUploadApiTest {
 
         assertThat(response.getInteger("code")).isZero();
         assertThat(response.getString("msg")).contains("仅支持上传");
+    }
+
+    @Test
+    void uploadShouldRejectFakeImageByMagicNumber() {
+        // 扩展名是 .png，但内容是纯文本：仅靠扩展名会被绕过，必须校验文件头
+        byte[] fake = "this is definitely not an image".getBytes(StandardCharsets.UTF_8);
+        JSONObject response = upload(adminToken(), "fake.png", fake);
+
+        assertThat(response.getInteger("code")).isZero();
+        assertThat(response.getString("msg")).contains("文件内容与图片格式不符");
     }
 
     @Test
