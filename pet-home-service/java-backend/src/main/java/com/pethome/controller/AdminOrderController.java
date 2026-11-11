@@ -1,6 +1,7 @@
 package com.pethome.controller;
 
 import com.pethome.common.Result;
+import com.pethome.common.annotation.RequireRole;
 import com.pethome.dto.OrderAdminPageQuery;
 import com.pethome.dto.OrderAssignRequest;
 import com.pethome.service.AdminOrderService;
@@ -56,18 +57,20 @@ public class AdminOrderController {
     }
 
     /**
-     * 分配/改派美容师
+     * 分配/改派美容师（涉及排班资源调整，仅管理员）
      */
     @PutMapping("/assign")
+    @RequireRole("ADMIN")
     public Result assign(@RequestBody @Valid OrderAssignRequest request) {
         adminOrderService.assign(request);
         return Result.success();
     }
 
     /**
-     * 取消订单
+     * 取消订单（影响排班释放，仅管理员）
      */
     @PutMapping("/cancel/{id}")
+    @RequireRole("ADMIN")
     public Result cancel(@PathVariable @Min(value = 1, message = "订单id不合法") Long id) {
         adminOrderService.cancelByAdmin(id);
         return Result.success();

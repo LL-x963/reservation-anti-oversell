@@ -32,9 +32,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>覆盖范围：</p>
  * <ul>
  *   <li>pet_home.sql 种子演示账号 13800138000 / 123456 可登录且密码为 BCrypt 密文（回归）；</li>
- *   <li>手机号未注册时自动注册（密码即注册密码），重复登录不会重复建号；</li>
- *   <li>密码错误、手机号格式、密码长度、两种登录方式互斥等校验；</li>
- *   <li>原有 openid 登录方式不受改造影响。</li>
+ *   <li>未注册手机号直接登录被拒绝，不会自动建号；注册后通过独立注册接口建号并可登录；</li>
+ *   <li>密码错误、手机号格式、密码长度、登录方式互斥、弱密码拒绝等校验；</li>
+ *   <li>openid 直登在本地 / 测试环境（allow-openid-direct-login=true）仍可用。</li>
  * </ul>
  *
  * <p>需要本地 MySQL（pet_home 库）、Redis、RabbitMQ 均可用。</p>
@@ -120,10 +120,27 @@ class UserLoginApiTest {
         assertThat(result.getString("msg")).contains("手机号或密码错误");
     }
 
-    // ==================== 手机号自动注册 ====================
+    // ==================== 手机号注册 ====================
 
+    /**
+     * 未注册手机号直接登录必须被拒绝，且不能留下账号；
+     * 必须走独立注册接口，注册后才可登录。
+     */
     @Test
-    void unregisteredPhoneShouldAutoRegister() {
+    void unregisteredPhoneShouldBeRejectedAndRegisterShouldWork() {
+        // 1. 未注册直接登录：拒绝，且不得自动建号
+        JSONObject rejected = postLogin(Map.of("phone", NEW_PHONE, "password", NEW_PASSWORD));
+        assertThat(rejected.getInteger("code")).isZero();
+        assertThat(rejected.getString("msg")).contains("手机号或密码错误");
+        assertThat(userMapper.selectCount(new LambdaQueryWrapper<User>()
+                .eq(User::getPhone, NEW_PHONE))).isZero();
+
+        // 2. 通过注册接口建号
+        JSONObject register = postRegister(Map.of(
+                "phone", NEW_PHONE, "password", NEW_PASSWORD, "name", "新注册用户"));
+        assertThat(register.getInteger("code")).as("注册应成功: %s", register.getString("msg")).isEqualTo(1);
+
+        // 3. 注册后可登录，且密码为 BCrypt 密文
         JSONObject data = loginOk(Map.of("phone", NEW_PHONE, "password", NEW_PASSWORD));
         Long userId = data.getLong("userId");
 
@@ -135,11 +152,27 @@ class UserLoginApiTest {
         assertThat(created.getPassword()).startsWith("$2").isNotEqualTo(NEW_PASSWORD);
         assertThat(passwordEncoder.matches(NEW_PASSWORD, created.getPassword())).isTrue();
 
-        // 同一手机号再次登录：复用该账号，不会重复建号
+        // 4. 同一手机号再次登录：复用该账号，不会重复建号
         JSONObject again = loginOk(Map.of("phone", NEW_PHONE, "password", NEW_PASSWORD));
         assertThat(again.getLong("userId")).isEqualTo(userId);
         assertThat(userMapper.selectCount(new LambdaQueryWrapper<User>()
                 .eq(User::getPhone, NEW_PHONE))).isEqualTo(1L);
+
+        // 5. 重复注册：明确拒绝
+        JSONObject duplicate = postRegister(Map.of("phone", NEW_PHONE, "password", NEW_PASSWORD));
+        assertThat(duplicate.getInteger("code")).isZero();
+        assertThat(duplicate.getString("msg")).contains("已注册");
+    }
+
+    /**
+     * 注册时弱密码（纯数字）必须被拒绝
+     */
+    @Test
+    void registerShouldRejectWeakPassword() {
+        JSONObject result = postRegister(Map.of("phone", NEW_PHONE, "password", "12345678"));
+
+        assertThat(result.getInteger("code")).isZero();
+        assertThat(result.getString("msg")).contains("字母和数字");
     }
 
     // ==================== 参数校验 ====================
@@ -201,6 +234,15 @@ class UserLoginApiTest {
     }
 
     // ==================== 辅助方法 ====================
+
+    /**
+     * 调用注册接口，返回完整响应体
+     */
+    private JSONObject postRegister(Map<String, Object> body) {
+        ResponseEntity<String> response = restTemplate.postForEntity("/api/user/register", body, String.class);
+        assertThat(response.getStatusCode().value()).isEqualTo(200);
+        return JSON.parseObject(response.getBody());
+    }
 
     /**
      * 调用登录接口，返回完整响应体

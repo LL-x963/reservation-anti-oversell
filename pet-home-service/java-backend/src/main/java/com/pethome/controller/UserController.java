@@ -3,6 +3,7 @@ package com.pethome.controller;
 import com.pethome.common.Result;
 import com.pethome.common.context.UserContext;
 import com.pethome.dto.UserLoginRequest;
+import com.pethome.dto.UserRegisterRequest;
 import com.pethome.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -15,7 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * C 端用户接口
  *
- * <p>/api/user/login 免登录，其余 /api/user/** 需要 C 端用户 token。</p>
+ * <p>/api/user/login、/api/user/register 免登录，其余 /api/user/** 需要 C 端用户 token。</p>
  *
  * @author pet-home
  */
@@ -29,12 +30,23 @@ public class UserController {
     /**
      * 用户登录（免登录接口）
      *
-     * <p>支持两种方式（二选一，均支持首次登录自动注册）：{@code {openid}} 微信登录、
-     * {@code {phone, password}} 手机号密码登录。</p>
+     * <p>支持三种方式（三选一）：{@code {code}} 微信小程序登录、
+     * {@code {phone, password}} 手机号密码登录、{@code {openid}} 仅开发环境直登。</p>
      */
     @PostMapping("/login")
     public Result login(@RequestBody @Valid UserLoginRequest request) {
         return Result.success(userService.login(request));
+    }
+
+    /**
+     * 用户注册（免登录接口）
+     *
+     * <p>手机号 + 密码注册，密码需 8~32 位且同时包含字母和数字。</p>
+     */
+    @PostMapping("/register")
+    public Result register(@RequestBody @Valid UserRegisterRequest request) {
+        userService.register(request);
+        return Result.success();
     }
 
     /**

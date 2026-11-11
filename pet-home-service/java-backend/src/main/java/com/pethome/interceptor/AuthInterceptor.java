@@ -69,7 +69,8 @@ public class AuthInterceptor implements HandlerInterceptor {
             return unauthorized(response, "登录状态已失效，请重新登录");
         }
 
-        UserContext.set(userId, userType);
+        // 员工角色随 token 下发，供 RoleInterceptor 做权限校验
+        UserContext.set(userId, userType, jwtUtil.parseRole(token));
         log.debug("鉴权通过: userType={}, userId={}, uri={}", userType, userId, request.getRequestURI());
         return true;
     }

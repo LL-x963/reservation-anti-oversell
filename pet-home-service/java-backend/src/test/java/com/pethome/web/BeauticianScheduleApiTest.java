@@ -80,6 +80,7 @@ class BeauticianScheduleApiTest {
         employee.setPassword(passwordEncoder.encode(EMP_PASSWORD));
         employee.setSex(1);
         employee.setStatus(1);
+        employee.setRole("ADMIN");
         employeeMapper.insert(employee);
 
         beauticianId = insertBeautician(NAME_PREFIX + "小张");

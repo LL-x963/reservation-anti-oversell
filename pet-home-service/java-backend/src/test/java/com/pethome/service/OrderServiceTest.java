@@ -157,19 +157,9 @@ class OrderServiceTest {
         assertThat(((Number) schedule.get("order_id")).longValue()).isEqualTo(order.getId());
     }
 
-    @Test
-    void submitShouldClearUserCart() {
-        CartAddRequest cartAdd = new CartAddRequest();
-        cartAdd.setServiceId(onSaleServiceId);
-        cartAdd.setQuantity(1);
-        cartService.add(cartAdd);
-        assertThat(cartService.list()).hasSize(1);
-
-        orderService.submit(submitRequest());
-
-        assertThat(cartService.list()).isEmpty();
-        assertThat(redisUtil.hasKey(RedisKeyConstant.cartKey(userId))).isFalse();
-    }
+    // 说明：下单后清空预约车依赖事务提交后的回调（afterCommit）。
+    // 本测试类整体运行在测试事务中、方法结束即回滚，无法触发提交回调，
+    // 因此该行为改由 OrderApiTest#submitAndPayFlowShouldWork 通过真实 HTTP 请求覆盖。
 
     @Test
     void submitShouldRejectInvalidTimeSlot() {
@@ -425,12 +415,23 @@ class OrderServiceTest {
         Long orderId = submit();
         orderService.pay(payRequest(orderId));
 
+        // 改派会同时切换排班：目标美容师必须在职且该时段可约
+        Long anotherBeauticianId = insertBeautician("IT-订单美容师B", 1);
+        insertSchedule(anotherBeauticianId, DATE, SLOT_10_12, 1, null);
+
         OrderAssignRequest request = new OrderAssignRequest();
         request.setOrderId(orderId);
-        request.setBeauticianId(offDutyBeauticianId);
+        request.setBeauticianId(anotherBeauticianId);
         adminOrderService.assign(request);
 
-        assertThat(serviceOrderMapper.selectById(orderId).getBeauticianId()).isEqualTo(offDutyBeauticianId);
+        ServiceOrder assigned = serviceOrderMapper.selectById(orderId);
+        assertThat(assigned.getBeauticianId()).isEqualTo(anotherBeauticianId);
+        assertThat(assigned.getScheduleId()).isNotNull();
+
+        // 离职美容师不能改派
+        request.setBeauticianId(offDutyBeauticianId);
+        assertThat(catchBusinessException(() -> adminOrderService.assign(request)).getMessage())
+                .contains("已离职");
 
         // 不存在的美容师
         request.setBeauticianId(99999999L);

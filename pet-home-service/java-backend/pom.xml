@@ -37,6 +37,22 @@
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
 
+        <!-- 健康检查 / 指标端点：提供 /actuator/health 供负载均衡与监控探活 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <!-- 数据库版本化迁移：脚本在 db/migration，禁止再手工执行建表 SQL -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-mysql</artifactId>
+        </dependency>
+
         <!-- MyBatis-Plus（Spring Boot 3 专用 starter，3.5.9 起分页依赖需额外引入 jsqlparser 模块） -->
         <dependency>
             <groupId>com.baomidou</groupId>

@@ -18,6 +18,9 @@ import java.util.List;
 @ConfigurationProperties(prefix = "pethome.upload")
 public class UploadProperties {
 
+    /** 存储类型：local 本地磁盘 / oss 对象存储 */
+    private String storageType = "local";
+
     /** 本地存储根目录（相对路径基于服务启动目录） */
     private String baseDir = "./upload";
 
@@ -29,6 +32,31 @@ public class UploadProperties {
 
     /** 允许上传的图片扩展名 */
     private List<String> allowedExtensions = new ArrayList<>(Arrays.asList("jpg", "jpeg", "png", "gif", "webp"));
+
+    /** 对象存储配置（storage-type=oss 时使用） */
+    private Oss oss = new Oss();
+
+    /**
+     * 对象存储配置
+     */
+    @Data
+    public static class Oss {
+
+        /** 服务地址，例如 https://oss-cn-hangzhou.aliyuncs.com */
+        private String endpoint;
+
+        /** 存储桶名称 */
+        private String bucket;
+
+        /** 访问密钥 */
+        private String accessKey;
+
+        /** 访问密钥 Secret */
+        private String secretKey;
+
+        /** 对外访问域名（CDN 或桶域名） */
+        private String publicUrlPrefix;
+    }
 
     /**
      * 归一化后的访问前缀，保证以 / 结尾

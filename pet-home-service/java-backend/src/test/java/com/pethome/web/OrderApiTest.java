@@ -93,6 +93,7 @@ class OrderApiTest {
         employee.setPassword(passwordEncoder.encode(EMP_PASSWORD));
         employee.setSex(1);
         employee.setStatus(1);
+        employee.setRole("ADMIN");
         employeeMapper.insert(employee);
 
         Long categoryId = insertCategory(CATEGORY_NAME);
@@ -400,8 +401,9 @@ class OrderApiTest {
         assertThat(confirmed.getInteger("status")).isEqualTo(OrderStatus.PENDING_VISIT.getCode());
         assertThat(confirmed.getString("messageId")).isEqualTo("remind:" + orderId);
 
-        // 改派美容师
+        // 改派美容师：改派会同时切换排班，目标美容师该时段必须可约
         Long anotherBeauticianId = insertBeautician(BEAUTICIAN_NAME + "-B", 1);
+        insertSchedule(anotherBeauticianId, DATE, SLOT_10_12, 1, null);
         Map<String, Object> assign = new HashMap<>();
         assign.put("orderId", orderId);
         assign.put("beauticianId", anotherBeauticianId);

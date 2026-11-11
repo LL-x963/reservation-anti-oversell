@@ -32,10 +32,17 @@ public class TokenService {
      * @param name 登录人姓名，随登录响应一并返回给前端
      */
     public LoginVO issue(Long userId, UserType userType, String name) {
-        String token = jwtUtil.generateToken(userId, userType);
+        return issue(userId, userType, name, null);
+    }
+
+    /**
+     * 签发 token（管理端可指定员工角色，随 token 下发，避免每次请求查库）
+     */
+    public LoginVO issue(Long userId, UserType userType, String name, String role) {
+        String token = jwtUtil.generateToken(userId, userType, jwtProperties.getExpireSeconds(), role);
         redisUtil.set(RedisKeyConstant.loginTokenKey(userType, userId), token,
                 jwtProperties.getExpireSeconds(), TimeUnit.SECONDS);
-        log.info("签发登录 token: userType={}, userId={}", userType, userId);
+        log.info("签发登录 token: userType={}, userId={}, role={}", userType, userId, role);
         return new LoginVO(token, userId, userType.getCode(), jwtProperties.getExpireSeconds(), name);
     }
 

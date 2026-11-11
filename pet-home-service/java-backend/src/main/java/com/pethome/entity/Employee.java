@@ -46,4 +46,7 @@ public class Employee extends BaseEntity {
     /** 状态 1启用 0禁用 */
     private Integer status;
 
+    /** 角色 ADMIN / OPERATOR，见 EmployeeRole；库表默认 OPERATOR（最小权限） */
+    private String role;
+
 }

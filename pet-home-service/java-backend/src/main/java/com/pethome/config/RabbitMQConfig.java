@@ -12,6 +12,8 @@ import org.springframework.amqp.core.QueueBuilder;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitAdmin;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.amqp.rabbit.retry.MessageRecoverer;
+import org.springframework.amqp.rabbit.retry.RepublishMessageRecoverer;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -110,6 +112,41 @@ public class RabbitMQConfig {
             return BindingBuilder.bind(orderReminderQueue)
                     .to(orderDirectExchange)
                     .with(MqConstant.ORDER_REMINDER_ROUTING_KEY);
+        }
+    }
+
+    /**
+     * 死信拓扑与消费失败兜底。
+     *
+     * <p>消费端开启重试（见 application.yaml 中 spring.rabbitmq.listener.simple.retry），
+     * 重试耗尽后由 {@link RepublishMessageRecoverer} 把消息转发到死信队列，
+     * 而不是直接丢弃或无限重回原队列。</p>
+     */
+    @Configuration(proxyBeanMethods = false)
+    public static class DeadLetterConfiguration {
+
+        @Bean
+        public DirectExchange orderDlxExchange() {
+            return ExchangeBuilder.directExchange(MqConstant.ORDER_DLX_EXCHANGE).durable(true).build();
+        }
+
+        @Bean
+        public Queue orderDlqQueue() {
+            return QueueBuilder.durable(MqConstant.ORDER_DLQ_QUEUE).build();
+        }
+
+        @Bean
+        public Binding orderDlqBinding(Queue orderDlqQueue, DirectExchange orderDlxExchange) {
+            return BindingBuilder.bind(orderDlqQueue).to(orderDlxExchange).with(MqConstant.ORDER_DLQ_ROUTING_KEY);
+        }
+
+        /**
+         * 重试耗尽后的消息兜底：转发到死信队列，保留原始消息与异常头信息
+         */
+        @Bean
+        public MessageRecoverer messageRecoverer(RabbitTemplate rabbitTemplate) {
+            return new RepublishMessageRecoverer(rabbitTemplate,
+                    MqConstant.ORDER_DLX_EXCHANGE, MqConstant.ORDER_DLQ_ROUTING_KEY);
         }
     }
 

@@ -14,13 +14,19 @@ public final class UserContext {
 
     private static final ThreadLocal<Long> USER_ID = new ThreadLocal<>();
     private static final ThreadLocal<UserType> USER_TYPE = new ThreadLocal<>();
+    private static final ThreadLocal<String> ROLE = new ThreadLocal<>();
 
     private UserContext() {
     }
 
     public static void set(Long userId, UserType userType) {
+        set(userId, userType, null);
+    }
+
+    public static void set(Long userId, UserType userType, String role) {
         USER_ID.set(userId);
         USER_TYPE.set(userType);
+        ROLE.set(role);
     }
 
     public static Long getUserId() {
@@ -29,6 +35,13 @@ public final class UserContext {
 
     public static UserType getUserType() {
         return USER_TYPE.get();
+    }
+
+    /**
+     * 当前登录员工的角色（仅管理端 token 有值）
+     */
+    public static String getRole() {
+        return ROLE.get();
     }
 
     /**
@@ -45,6 +58,7 @@ public final class UserContext {
     public static void clear() {
         USER_ID.remove();
         USER_TYPE.remove();
+        ROLE.remove();
     }
 
 }

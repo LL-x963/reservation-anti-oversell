@@ -79,6 +79,7 @@ class FileUploadApiTest {
         employee.setName("上传测试员工");
         employee.setPassword(passwordEncoder.encode(EMP_PASSWORD));
         employee.setStatus(1);
+        employee.setRole("ADMIN");
         employeeMapper.insert(employee);
     }
 

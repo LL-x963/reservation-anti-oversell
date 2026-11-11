@@ -39,6 +39,7 @@ import com.pethome.service.BeauticianScoreService;
 import com.pethome.service.BeauticianService;
 import com.pethome.service.CartService;
 import com.pethome.service.OrderService;
+import com.pethome.service.PaymentService;
 import com.pethome.service.PetProfileService;
 import com.pethome.service.ServiceItemService;
 import com.pethome.service.UserService;
@@ -100,10 +101,18 @@ public class OrderServiceImpl extends ServiceImpl<ServiceOrderMapper, ServiceOrd
     /** 催单限流时长（秒） */
     private static final int REMINDER_LIMIT_SECONDS = 300;
 
+    /** 幂等键「处理中」标记 */
+    private static final String IDEMPOTENT_PROCESSING = "processing";
+    /** 幂等键处理中的有效期（分钟）：异常未写回结果时自动释放，避免永久卡住 */
+    private static final long IDEMPOTENT_PROCESSING_MINUTES = 5L;
+    /** 幂等结果有效期（小时） */
+    private static final long IDEMPOTENT_TTL_HOURS = 24L;
+
     private final ServiceItemService serviceItemService;
     private final PetProfileService petProfileService;
     private final BeauticianService beauticianService;
     private final CartService cartService;
+    private final PaymentService paymentService;
     private final BeauticianScoreService beauticianScoreService;
     private final AddressBookMapper addressBookMapper;
     private final BeauticianScheduleMapper beauticianScheduleMapper;
@@ -120,6 +129,24 @@ public class OrderServiceImpl extends ServiceImpl<ServiceOrderMapper, ServiceOrd
     @Transactional(rollbackFor = Exception.class)
     public OrderSubmitVO submit(OrderSubmitRequest request) {
         Long userId = UserContext.requireUserId();
+
+        // 0. 幂等：同一 requestId 重复提交直接返回已创建的订单，避免连点或网络重试产生多张订单
+        String idemKey = null;
+        if (StringUtils.hasText(request.getRequestId())) {
+            idemKey = RedisKeyConstant.orderIdempotentKey(userId, request.getRequestId().trim());
+            boolean first = redisUtil.setIfAbsentString(idemKey, IDEMPOTENT_PROCESSING,
+                    IDEMPOTENT_PROCESSING_MINUTES, TimeUnit.MINUTES);
+            if (!first) {
+                ServiceOrder existing = findIdempotentOrder(idemKey);
+                if (existing != null) {
+                    log.info("重复提交命中幂等键，返回已有订单: orderId={}, userId={}", existing.getId(), userId);
+                    return new OrderSubmitVO(existing.getId(), existing.getOrderNumber(),
+                            existing.getTotalAmount(), existing.getStatus());
+                }
+                throw new BusinessException("订单正在处理中，请勿重复提交");
+            }
+            registerIdempotentRollback(idemKey);
+        }
 
         // 1. 时段合法性校验
         String timeSlot = request.getTimeSlot().trim();
@@ -160,7 +187,8 @@ public class OrderServiceImpl extends ServiceImpl<ServiceOrderMapper, ServiceOrd
 
         // 5. 创建订单，初始状态待支付
         ServiceOrder order = new ServiceOrder();
-        order.setOrderNumber(OrderNumberGenerator.generate());
+        // 订单号后缀取 Redis 全局自增序号：同一毫秒内也不会碰撞
+        order.setOrderNumber(OrderNumberGenerator.generate(redisUtil.increment(RedisKeyConstant.ORDER_SEQ_KEY, 1)));
         order.setUserId(userId);
         order.setAddressId(request.getAddressId());
         order.setPetId(request.getPetId());
@@ -193,38 +221,43 @@ public class OrderServiceImpl extends ServiceImpl<ServiceOrderMapper, ServiceOrd
             orderDetailMapper.insert(detail);
         }
 
-        // 9. 发送超时取消延迟消息（默认 30 分钟，可通过 pethome.order.cancel-delay-millis 调整）
-        mqMessageSender.sendOrderCancelDelayed(order.getId(), orderProperties.getCancelDelayMillis());
+        Long orderId = order.getId();
 
-        // 10. 下单成功后清空用户预约车
-        cartService.clearCart(userId);
+        // 9. 事务提交后再发 MQ、清空预约车：
+        //    放在事务内时，一旦事务回滚会出现「消息已发出 / 购物车已清空」而订单不存在的脏状态
+        afterCommit(() -> {
+            try {
+                mqMessageSender.sendOrderCancelDelayed(orderId, orderProperties.getCancelDelayMillis());
+            } catch (Exception e) {
+                log.error("下单成功但超时取消消息发送失败，需补偿: orderId={}", orderId, e);
+            }
+            try {
+                cartService.clearCart(userId);
+            } catch (Exception e) {
+                log.error("下单成功但清空预约车失败: orderId={}, userId={}", orderId, userId, e);
+            }
+        });
+
+        // 10. 事务提交后写入幂等结果，后续同一 requestId 直接返回该订单
+        if (idemKey != null) {
+            String finalIdemKey = idemKey;
+            afterCommit(() -> redisUtil.setString(finalIdemKey, String.valueOf(orderId),
+                    IDEMPOTENT_TTL_HOURS, TimeUnit.HOURS));
+        }
 
         log.info("提交预约成功: orderId={}, orderNumber={}, userId={}, beauticianId={}, date={}, timeSlot={}, totalAmount={}",
-                order.getId(), order.getOrderNumber(), userId, request.getBeauticianId(),
+                orderId, order.getOrderNumber(), userId, request.getBeauticianId(),
                 request.getAppointmentDate(), timeSlot, totalAmount);
 
-        return new OrderSubmitVO(order.getId(), order.getOrderNumber(), totalAmount, order.getStatus());
+        return new OrderSubmitVO(orderId, order.getOrderNumber(), totalAmount, order.getStatus());
     }
 
     // ==================== 支付 ====================
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public void pay(OrderPayRequest request) {
-        Long userId = UserContext.requireUserId();
-        ServiceOrder order = getOwnedOrder(request.getOrderId(), userId);
-
-        if (!OrderStatus.PENDING_PAY.is(order.getStatus())) {
-            throw new BusinessException("订单状态为" + OrderStatus.descOf(order.getStatus()) + "，不能支付");
-        }
-
-        ServiceOrder update = new ServiceOrder();
-        update.setId(order.getId());
-        update.setStatus(OrderStatus.PENDING_CONFIRM.getCode());
-        update.setPayTime(LocalDateTime.now());
-        updateById(update);
-
-        log.info("模拟支付成功: orderId={}, userId={}", order.getId(), userId);
+        // 支付统一走 PaymentService：归属校验、渠道预下单、流水、条件更新、幂等都在那一层
+        paymentService.pay(request.getOrderId());
     }
 
     // ==================== 查询 ====================
@@ -344,17 +377,24 @@ public class OrderServiceImpl extends ServiceImpl<ServiceOrderMapper, ServiceOrd
             throw new BusinessException("订单状态为" + OrderStatus.descOf(order.getStatus()) + "，不能确认");
         }
 
-        ServiceOrder update = new ServiceOrder();
-        update.setId(orderId);
-        update.setStatus(OrderStatus.PENDING_VISIT.getCode());
-        update.setMessageId(MqConstant.REMIND_MESSAGE_ID_PREFIX + orderId);
-        updateById(update);
+        String messageId = MqConstant.REMIND_MESSAGE_ID_PREFIX + orderId;
+        int affected = baseMapper.confirmCas(orderId, messageId);
+        if (affected == 0) {
+            throw new BusinessException("订单状态已变更，请刷新后重试");
+        }
 
-        // 计算预约开始时间前 1 小时，发送到点提醒延迟消息（已不足 1 小时则立即投递）
+        // 计算预约开始时间前 1 小时；确认时已不足 1 小时则立即投递。
+        // 发送放到事务提交后，避免消费者在订单状态尚未提交时读库、把提醒消息当成脏数据丢掉。
         LocalDateTime remindAt = LocalDateTime.of(order.getAppointmentDate(), TimeSlot.startTimeOf(order.getTimeSlot()))
                 .minusHours(1);
-        long delayMillis = Duration.between(LocalDateTime.now(), remindAt).toMillis();
-        mqMessageSender.sendOrderRemindDelayed(orderId, delayMillis);
+        long delayMillis = Math.max(Duration.between(LocalDateTime.now(), remindAt).toMillis(), 0L);
+        afterCommit(() -> {
+            try {
+                mqMessageSender.sendOrderRemindDelayed(orderId, delayMillis);
+            } catch (Exception e) {
+                log.error("确认订单成功但提醒消息发送失败，需补偿: orderId={}", orderId, e);
+            }
+        });
 
         log.info("确认订单成功: orderId={}, 提醒延迟={}ms", orderId, delayMillis);
     }
@@ -367,17 +407,42 @@ public class OrderServiceImpl extends ServiceImpl<ServiceOrderMapper, ServiceOrd
         if (status != OrderStatus.PENDING_CONFIRM && status != OrderStatus.PENDING_VISIT) {
             throw new BusinessException("订单状态为" + status.getDesc() + "，不能分配美容师");
         }
-        if (beauticianService.getById(request.getBeauticianId()) == null) {
+        Beautician targetBeautician = beauticianService.getById(request.getBeauticianId());
+        if (targetBeautician == null) {
             throw new BusinessException("美容师不存在");
         }
+        if (!Integer.valueOf(BEAUTICIAN_ON_DUTY).equals(targetBeautician.getStatus())) {
+            throw new BusinessException("美容师已离职，无法分配");
+        }
+        // 同一美容师重复分配：幂等返回
+        if (Objects.equals(order.getBeauticianId(), request.getBeauticianId())) {
+            return;
+        }
 
-        ServiceOrder update = new ServiceOrder();
-        update.setId(order.getId());
-        update.setBeauticianId(request.getBeauticianId());
-        updateById(update);
+        // 改派必须同时切换排班，否则旧排班被占死、新美容师时段超卖
+        BeauticianSchedule newSchedule = beauticianScheduleMapper.selectOne(new LambdaQueryWrapper<BeauticianSchedule>()
+                .eq(BeauticianSchedule::getBeauticianId, request.getBeauticianId())
+                .eq(BeauticianSchedule::getDate, order.getAppointmentDate())
+                .eq(BeauticianSchedule::getTimeSlot, order.getTimeSlot()));
+        if (newSchedule == null || !Integer.valueOf(SCHEDULE_AVAILABLE).equals(newSchedule.getAvailable())) {
+            throw new BusinessException("该美容师的所选时段不可约，无法改派");
+        }
 
-        // 仅调整订单归属，排班占用保持不变（不释放原排班、不占用新排班）
-        log.info("分配美容师成功: orderId={}, beauticianId={}", order.getId(), request.getBeauticianId());
+        // 释放原排班（同一事务内，后续任一步失败会整体回滚）
+        if (order.getScheduleId() != null) {
+            beauticianScheduleMapper.releaseSlot(order.getScheduleId(), order.getId());
+        }
+        if (beauticianScheduleMapper.occupySlot(newSchedule.getId(), order.getId()) == 0) {
+            throw new BusinessException(ErrorCodeConstant.SLOT_ALREADY_BOOKED, "该时段已被预约");
+        }
+
+        int affected = baseMapper.reassignCas(order.getId(), request.getBeauticianId(), newSchedule.getId());
+        if (affected == 0) {
+            throw new BusinessException("订单状态已变更，请刷新后重试");
+        }
+
+        log.info("改派美容师成功: orderId={}, beauticianId={}, scheduleId={}",
+                order.getId(), request.getBeauticianId(), newSchedule.getId());
     }
 
     @Override
@@ -389,10 +454,10 @@ public class OrderServiceImpl extends ServiceImpl<ServiceOrderMapper, ServiceOrd
             throw new BusinessException("订单状态为" + status.getDesc() + "，不能完成");
         }
 
-        ServiceOrder update = new ServiceOrder();
-        update.setId(orderId);
-        update.setStatus(OrderStatus.PENDING_COMMENT.getCode());
-        updateById(update);
+        int affected = baseMapper.completeCas(orderId);
+        if (affected == 0) {
+            throw new BusinessException("订单状态已变更，请刷新后重试");
+        }
 
         log.info("完成订单成功: orderId={}, 状态置为待评价", orderId);
     }
@@ -402,18 +467,14 @@ public class OrderServiceImpl extends ServiceImpl<ServiceOrderMapper, ServiceOrd
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void markReminded(Long orderId) {
-        ServiceOrder order = getById(orderId);
-        if (order == null || !OrderStatus.PENDING_VISIT.is(order.getStatus())) {
-            log.info("到点提醒消息丢弃: orderId={}, 当前状态={}", orderId,
+        // 条件更新自带幂等：只有「待上门 + 未提醒」才会更新，消息重复消费无副作用
+        int affected = baseMapper.markRemindedCas(orderId);
+        if (affected == 0) {
+            ServiceOrder order = getById(orderId);
+            log.info("到点提醒消息丢弃（重复消费或状态不符）: orderId={}, 当前状态={}", orderId,
                     order == null ? "订单不存在" : OrderStatus.descOf(order.getStatus()));
             return;
         }
-
-        ServiceOrder update = new ServiceOrder();
-        update.setId(orderId);
-        update.setReminderStatus(REMINDER_STATUS_REMINDED);
-        updateById(update);
-
         log.info("预约到点提醒已发出: orderId={}", orderId);
     }
 
@@ -434,6 +495,12 @@ public class OrderServiceImpl extends ServiceImpl<ServiceOrderMapper, ServiceOrd
             throw new BusinessException("该订单已评价");
         }
 
+        // 先做状态 CAS：并发重复评价时只有一个请求能把「待评价」改为「已完成」
+        int affected = baseMapper.commentCas(order.getId());
+        if (affected == 0) {
+            throw new BusinessException("该订单已评价");
+        }
+
         OrderComment comment = new OrderComment();
         comment.setOrderId(order.getId());
         comment.setUserId(userId);
@@ -441,12 +508,6 @@ public class OrderServiceImpl extends ServiceImpl<ServiceOrderMapper, ServiceOrd
         comment.setScore(request.getScore());
         comment.setContent(request.getContent());
         orderCommentMapper.insert(comment);
-
-        // 评价完成，订单置为已完成
-        ServiceOrder update = new ServiceOrder();
-        update.setId(order.getId());
-        update.setStatus(OrderStatus.COMPLETED.getCode());
-        updateById(update);
 
         // 事务提交后异步重算该美容师平均评分（避免异步线程读不到未提交的评价数据）
         Long beauticianId = order.getBeauticianId();
@@ -464,15 +525,18 @@ public class OrderServiceImpl extends ServiceImpl<ServiceOrderMapper, ServiceOrd
      */
     private void doCancel(ServiceOrder order, String reason) {
         OrderStatus status = OrderStatus.fromCode(order.getStatus());
-        if (status == OrderStatus.COMPLETED || status == OrderStatus.CANCELED) {
-            throw new BusinessException("订单已" + status.getDesc() + "，不能取消");
+        // 只有 待支付/待确认/待上门 允许取消；服务中(4)、待评价(7)、已完成(5)、已取消(6) 一律拒绝。
+        // 否则已提供的服务会被改成「已取消」，同时释放排班导致同一时段被二次售卖。
+        if (status != OrderStatus.PENDING_PAY
+                && status != OrderStatus.PENDING_CONFIRM
+                && status != OrderStatus.PENDING_VISIT) {
+            throw new BusinessException("订单" + status.getDesc() + "，不能取消");
         }
 
-        ServiceOrder update = new ServiceOrder();
-        update.setId(order.getId());
-        update.setStatus(OrderStatus.CANCELED.getCode());
-        update.setReminderStatus(REMINDER_STATUS_CANCELED);
-        updateById(update);
+        int affected = baseMapper.cancelCas(order.getId());
+        if (affected == 0) {
+            throw new BusinessException("订单状态已变更，请刷新后重试");
+        }
 
         // 释放排班：available=1，order_id=null
         int released = 0;
@@ -483,6 +547,39 @@ public class OrderServiceImpl extends ServiceImpl<ServiceOrderMapper, ServiceOrd
         }
 
         log.info("取消订单成功: orderId={}, reason={}, 释放排班数={}", order.getId(), reason, released);
+    }
+
+    /**
+     * 查询幂等键对应的订单（尚未写入结果时返回 null）
+     */
+    private ServiceOrder findIdempotentOrder(String idemKey) {
+        String value = redisUtil.getString(idemKey);
+        if (!StringUtils.hasText(value) || IDEMPOTENT_PROCESSING.equals(value)) {
+            return null;
+        }
+        try {
+            return getById(Long.valueOf(value));
+        } catch (NumberFormatException e) {
+            log.warn("幂等键值非法，已忽略: key={}, value={}", idemKey, value);
+            return null;
+        }
+    }
+
+    /**
+     * 事务回滚时删除幂等键，避免「下单失败但 requestId 被占用」
+     */
+    private void registerIdempotentRollback(String idemKey) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status != TransactionSynchronization.STATUS_COMMITTED) {
+                    redisUtil.delete(idemKey);
+                }
+            }
+        });
     }
 
     private void checkAddress(Long addressId, Long userId) {

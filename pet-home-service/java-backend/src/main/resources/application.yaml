@@ -1,105 +1,114 @@
 server:
-  port: 8080
+  port: ${SERVER_PORT:8080}
+  # 优雅停机：等在途请求处理完再退出，避免发布时接口 502
+  shutdown: graceful
 
 spring:
   application:
     name: pet-home
-
-  # ---------------- 文件上传 ----------------
+  # 未显式指定 profile 时使用 dev（本地开发 / 自动化测试）；
+  # 生产必须显式设置 SPRING_PROFILES_ACTIVE=prod，由启动自检拒绝不安全的默认值。
+  profiles:
+    default: dev
   servlet:
     multipart:
       max-file-size: 5MB
       max-request-size: 10MB
-
-  # ---------------- MySQL ----------------
-  datasource:
-    driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://localhost:3306/pet_home?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
-    username: root
-    password: 123456
-    hikari:
-      minimum-idle: 5
-      maximum-pool-size: 20
-      connection-timeout: 30000
-      idle-timeout: 600000
-      max-lifetime: 1800000
-
-  # ---------------- Redis ----------------
-  data:
-    redis:
-      host: localhost
-      port: 6379
-      database: 0
-      # 本地 Redis（E:\Redis\redis.windows.conf 中 requirepass 123456）
-      password: 123456
-      timeout: 5000ms
-
-  # ---------------- RabbitMQ ----------------
-  rabbitmq:
-    host: localhost
-    port: 5672
-    username: guest
-    password: guest
-    virtual-host: /
-    connection-timeout: 5000
-    # 开启发送方确认与路由失败回调
-    publisher-confirm-type: correlated
-    publisher-returns: true
-
-  # ---------------- Jackson ----------------
   jackson:
     date-format: yyyy-MM-dd HH:mm:ss
     time-zone: GMT+8
     default-property-inclusion: non_null
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+  # ---------------- 数据库迁移 ----------------
+  # 生产空库直接执行 V1；已存在的库通过 baseline 对齐，不会重复建表或删数据
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    baseline-version: 1
+    validate-on-migrate: true
+    clean-disabled: true
+
+  # ---------------- RabbitMQ 消费端 ----------------
+  # 失败重试 3 次（指数退避），仍失败则由 RepublishMessageRecoverer 转发到死信队列 order.dlq.queue
+  rabbitmq:
+    listener:
+      simple:
+        acknowledge-mode: auto
+        prefetch: 10
+        concurrency: 1
+        max-concurrency: 4
+        retry:
+          enabled: true
+          max-attempts: 3
+          initial-interval: 1000ms
+          multiplier: 2
+          max-interval: 10000ms
+
+# ---------------- 健康检查 ----------------
+# 仅暴露 health / info，且不返回依赖细节，供负载均衡与监控探活使用
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
 
 # ---------------- MyBatis-Plus ----------------
 mybatis-plus:
   mapper-locations: classpath*:/mapper/**/*.xml
   type-aliases-package: com.pethome.entity
   configuration:
-    # 下划线转驼峰
     map-underscore-to-camel-case: true
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    # 生产默认不打印全量 SQL；dev profile 覆盖为 StdOutImpl
+    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl
   global-config:
     banner: false
     db-config:
-      # 主键自增（配合实体上的 @TableId(type = IdType.AUTO)）
       id-type: auto
 
-# ---------------- 自定义配置 ----------------
+# ---------------- 业务配置 ----------------
 pethome:
   jwt:
-    # 生产环境请通过环境变量 PETHOME_JWT_SECRET 覆盖，长度不得少于 32 字节（HS256 要求）
-    secret: ${PETHOME_JWT_SECRET:pethome-jwt-secret-key-please-change-me-in-production-2024}
-    # token 有效期：24 小时（单位：秒）
-    expire-seconds: 86400
+    # 生产必须通过 PETHOME_JWT_SECRET 注入，长度 ≥ 32 字节，缺失则启动失败
+    secret: ${PETHOME_JWT_SECRET:}
+    expire-seconds: ${PETHOME_JWT_EXPIRE_SECONDS:86400}
     header: Authorization
     token-prefix: "Bearer "
   mq:
-    # 延迟交换机依赖 rabbitmq_delayed_message_exchange 插件，插件不可用时置为 false 即可正常启动
-    delayed-enabled: true
+    delayed-enabled: ${PETHOME_MQ_DELAYED_ENABLED:true}
   order:
-    # 待支付超时自动取消延迟（毫秒），默认 30 分钟
-    cancel-delay-millis: 1800000
+    cancel-delay-millis: ${PETHOME_ORDER_CANCEL_DELAY_MILLIS:1800000}
+  payment:
+    # 支付渠道：mock 模拟渠道 / wechat 微信支付 / alipay 支付宝
+    channel: ${PETHOME_PAYMENT_CHANNEL:mock}
+    # 生产默认禁止模拟支付；未接入真实渠道时必须显式开启，启动时会打印告警
+    allow-mock-payment: ${PETHOME_PAYMENT_ALLOW_MOCK:false}
+    # 回调验签密钥；mock 渠道使用 HMAC-SHA256(原始报文, secret)
+    callback-secret: ${PETHOME_PAYMENT_CALLBACK_SECRET:}
+    prepay-expire-minutes: ${PETHOME_PAYMENT_PREPAY_EXPIRE_MINUTES:30}
+    # 对账任务执行间隔（毫秒）
+    reconcile-interval-millis: ${PETHOME_PAYMENT_RECONCILE_INTERVAL:300000}
+    reconcile-initial-delay-millis: ${PETHOME_PAYMENT_RECONCILE_INITIAL_DELAY:60000}
   knowledge:
-    # RAG 知识库问答服务地址（pet-home-service/rag-service）
-    base-url: http://localhost:8000
-    # 与 rag-service 的 RAG_API_KEY 保持一致，通过请求头 X-API-Key 传递
-    api-key: ${PETHOME_RAG_API_KEY:pethome-rag-key}
+    enabled: ${PETHOME_RAG_ENABLED:true}
+    base-url: ${PETHOME_RAG_BASE_URL:http://localhost:8000}
+    api-key: ${PETHOME_RAG_API_KEY:}
     api-key-header: X-API-Key
-    # 连接超时（需求：3 秒）
     connect-timeout: 3s
-    # 问答读取超时（本地 1.5B 模型推理通常 2-10 秒，留足余量）
     read-timeout: 30s
-    # 重建索引读取超时（需向量化全部文档，明显长于问答）
     reindex-read-timeout: 5m
-    # 调用失败重试次数（不含首次调用）
     max-retries: 1
   upload:
-    # 本地文件存储目录（相对服务启动目录），WebMvcConfig 会将其映射为静态资源
-    base-dir: ./upload
+    # local：本地磁盘；oss：对象存储（已预留接口，未接入时启动即失败，不会静默降级）
+    storage-type: ${PETHOME_UPLOAD_STORAGE_TYPE:local}
+    base-dir: ${PETHOME_UPLOAD_BASE_DIR:./upload}
     url-prefix: /upload/
-    # 单文件大小上限（字节），5MB
     max-size: 5242880
     allowed-extensions:
       - jpg
@@ -107,7 +116,29 @@ pethome:
       - png
       - gif
       - webp
+  auth:
+    # 仅本地开发 / 自动化测试使用：允许直接传 openid 登录。
+    # 生产必须为 false（prod profile 固定 false，且启动自检会拒绝开启）。
+    allow-openid-direct-login: ${PETHOME_AUTH_ALLOW_OPENID_DIRECT_LOGIN:false}
+    # 登录失败锁定：连续失败 N 次锁定 M 分钟
+    max-fail-count: ${PETHOME_AUTH_MAX_FAIL_COUNT:5}
+    lock-minutes: ${PETHOME_AUTH_LOCK_MINUTES:15}
+    # 登录接口限流：同一 IP 每分钟最大尝试次数
+    rate-limit-per-minute: ${PETHOME_AUTH_RATE_LIMIT_PER_MINUTE:20}
+  wechat:
+    # 小程序登录：appid / secret 任一为空时，code 登录入口直接禁用（不会退化为信任客户端 openid）
+    appid: ${PETHOME_WECHAT_APPID:}
+    secret: ${PETHOME_WECHAT_SECRET:}
+    code2session-url: ${PETHOME_WECHAT_CODE2SESSION_URL:https://api.weixin.qq.com/sns/jscode2session}
+    connect-timeout: 3s
+    read-timeout: 5s
+  security:
+    # true 时跳过生产安全自检（仅限本地 / 测试）。prod profile 下必须为 false。
+    allow-insecure-dev-config: ${PETHOME_ALLOW_INSECURE_DEV_CONFIG:false}
+    # 允许跨域的来源，逗号分隔；* 仅限开发
+    cors-allowed-origins: ${PETHOME_CORS_ALLOWED_ORIGINS:}
 
 logging:
   level:
-    com.pethome: debug
+    root: info
+    com.pethome: info

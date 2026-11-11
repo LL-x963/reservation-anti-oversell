@@ -42,7 +42,7 @@ class UserAddressApiTest {
     private static final String DEMO_CONSIGNEE = "演示用户";
     private static final String DEMO_FULL_ADDRESS = "浙江省杭州市西湖区文一西路 100 号 1 单元 101 室";
 
-    /** 模拟“另一个用户”：手机号登录会自动注册，用例结束后清理 */
+    /** 模拟“另一个用户”：先注册再登录，用例结束后清理 */
     private static final String NEW_PHONE = "13900003333";
     private static final String NEW_PASSWORD = "abc123456";
 
@@ -98,8 +98,8 @@ class UserAddressApiTest {
 
     @Test
     void addressListShouldOnlyReturnOwnAddresses() {
-        // 新用户自动注册后没有任何地址，也不应看到别人的地址
-        String token = login(NEW_PHONE, NEW_PASSWORD);
+        // 新注册用户没有任何地址，也不应看到别人的地址
+        String token = registerAndLogin(NEW_PHONE, NEW_PASSWORD);
 
         JSONObject response = getJson("/api/user/address/list", token);
 
@@ -108,6 +108,17 @@ class UserAddressApiTest {
     }
 
     // ==================== 辅助方法 ====================
+
+    /**
+     * 先注册再登录：手机号登录不再自动建号
+     */
+    private String registerAndLogin(String phone, String password) {
+        ResponseEntity<String> register = restTemplate.postForEntity("/api/user/register",
+                Map.of("phone", phone, "password", password), String.class);
+        assertThat(JSON.parseObject(register.getBody()).getInteger("code"))
+                .as("注册应成功: %s", register.getBody()).isEqualTo(1);
+        return login(phone, password);
+    }
 
     private String login(String phone, String password) {
         ResponseEntity<String> response = restTemplate.postForEntity("/api/user/login",

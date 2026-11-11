@@ -2,6 +2,9 @@ package com.pethome.util;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 
@@ -20,7 +23,21 @@ import java.util.concurrent.TimeUnit;
 @RequiredArgsConstructor
 public class RedisUtil {
 
+    /**
+     * HINCRBY + 上限校验 + 超限回滚，全部在一次 Lua 调用内原子完成。
+     * 返回 -1 表示超限，此时增量已被回滚。
+     */
+    private static final RedisScript<Long> HASH_INCREMENT_WITH_LIMIT_SCRIPT = new DefaultRedisScript<>(
+            "local v = redis.call('HINCRBY', KEYS[1], ARGV[1], ARGV[2]) "
+                    + "if v > tonumber(ARGV[3]) then "
+                    + "redis.call('HINCRBY', KEYS[1], ARGV[1], -ARGV[2]) "
+                    + "return -1 end "
+                    + "return v", Long.class);
+
     private final RedisTemplate<String, Object> redisTemplate;
+
+    /** 纯字符串模板：用于限流、失败计数等需要原子自增的数值型 key */
+    private final StringRedisTemplate stringRedisTemplate;
 
     /**
      * 普通缓存写入
@@ -119,7 +136,102 @@ public class RedisUtil {
         return Boolean.TRUE.equals(redisTemplate.opsForValue().setIfAbsent(key, value, timeout, unit));
     }
 
+    /**
+     * 原子自增（Redis INCRBY），用于限流与失败计数。
+     *
+     * <p>刻意使用 {@link StringRedisTemplate} 而非 JSON 序列化的模板：
+     * 计数是纯数字，走 JSON 序列化会产生类型包装，读取时还要反解。</p>
+     *
+     * @return 自增后的值
+     */
+    public long increment(String key, long delta) {
+        Long value = stringRedisTemplate.opsForValue().increment(key, delta);
+        return value == null ? 0L : value;
+    }
+
+    /**
+     * 以纯字符串方式读取（与 {@link #increment} 配套）
+     */
+    public String getString(String key) {
+        return key == null ? null : stringRedisTemplate.opsForValue().get(key);
+    }
+
+    /**
+     * 纯字符串写入（带过期时间），与 {@link #getString} 配套
+     */
+    public void setString(String key, String value, long timeout, TimeUnit unit) {
+        stringRedisTemplate.opsForValue().set(key, value, timeout, unit);
+    }
+
+    /**
+     * 不存在时以纯字符串写入并设置过期时间（下单幂等等场景使用）
+     *
+     * @return true 表示写入成功（此前不存在）
+     */
+    public boolean setIfAbsentString(String key, String value, long timeout, TimeUnit unit) {
+        return Boolean.TRUE.equals(stringRedisTemplate.opsForValue().setIfAbsent(key, value, timeout, unit));
+    }
+
     // ==================== Hash 操作 ====================
+
+    /**
+     * Hash 字段原子自增（HINCRBY）。
+     *
+     * <p>用于预约车累加数量：读-改-写（HGET + HSET）在并发下会丢更新，
+     * HINCRBY 由 Redis 单线程保证原子性。</p>
+     *
+     * @return 自增后的值
+     */
+    public long hIncrement(String key, String field, long delta) {
+        Long value = stringRedisTemplate.opsForHash().increment(key, field, delta);
+        return value == null ? 0L : value;
+    }
+
+    /**
+     * Hash 字段原子自增并校验上限（Lua 脚本保证「累加 + 判断 + 回滚」原子执行）。
+     *
+     * @return 自增后的值；返回 -1 表示超过上限，且本次增量已被回滚
+     */
+    public long hIncrementWithLimit(String key, String field, long delta, long max) {
+        Long result = stringRedisTemplate.execute(HASH_INCREMENT_WITH_LIMIT_SCRIPT,
+                Collections.singletonList(key), field, String.valueOf(delta), String.valueOf(max));
+        return result == null ? -1L : result;
+    }
+
+    /**
+     * Hash 写入单个字段（纯字符串）
+     */
+    public void hSetString(String key, String field, String value) {
+        stringRedisTemplate.opsForHash().put(key, field, value);
+    }
+
+    /**
+     * Hash 是否存在指定字段（纯字符串）
+     */
+    public boolean hHasKeyString(String key, String field) {
+        return key != null && Boolean.TRUE.equals(stringRedisTemplate.opsForHash().hasKey(key, field));
+    }
+
+    /**
+     * Hash 删除字段（纯字符串）
+     */
+    public long hDeleteString(String key, String... fields) {
+        if (key == null || fields == null || fields.length == 0) {
+            return 0L;
+        }
+        Long count = stringRedisTemplate.opsForHash().delete(key, (Object[]) fields);
+        return count == null ? 0L : count;
+    }
+
+    /**
+     * Hash 读取全部字段（纯字符串）
+     */
+    public Map<Object, Object> hGetAllString(String key) {
+        if (key == null) {
+            return Collections.emptyMap();
+        }
+        return stringRedisTemplate.opsForHash().entries(key);
+    }
 
     /**
      * Hash 写入单个字段

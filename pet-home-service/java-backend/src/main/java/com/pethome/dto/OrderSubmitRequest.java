@@ -59,4 +59,13 @@ public class OrderSubmitRequest implements Serializable {
     @Size(max = 200, message = "备注长度不能超过200")
     private String remark;
 
+    /**
+     * 幂等请求 id（选填）。
+     *
+     * <p>由客户端在进入下单页时生成一次并复用，重复点击提交时服务端返回同一张订单，
+     * 避免网络重试或用户连点产生多张订单。建议传 UUID。</p>
+     */
+    @Size(max = 64, message = "幂等请求id长度不能超过64")
+    private String requestId;
+
 }

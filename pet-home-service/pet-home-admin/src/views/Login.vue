@@ -112,7 +112,7 @@ async function handleLogin() {
         </el-form-item>
       </el-form>
 
-      <div class="login-footer">默认账号：admin / 123456</div>
+      <div class="login-footer">请使用管理员账号登录，忘记密码请联系系统管理员</div>
     </el-card>
   </div>
 </template>

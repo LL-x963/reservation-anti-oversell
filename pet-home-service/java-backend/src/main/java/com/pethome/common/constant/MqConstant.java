@@ -30,6 +30,15 @@ public final class MqConstant {
     /** 消息延迟时间 header（单位：毫秒） */
     public static final String DELAY_HEADER = "x-delay";
 
+    /** 死信交换机：消费重试耗尽后的消息转发到这里，避免静默丢失 */
+    public static final String ORDER_DLX_EXCHANGE = "order.dlx";
+
+    /** 死信队列 */
+    public static final String ORDER_DLQ_QUEUE = "order.dlq.queue";
+
+    /** 死信路由键 */
+    public static final String ORDER_DLQ_ROUTING_KEY = "order.dlq";
+
     // ==================== 队列 ====================
 
     /** 订单超时未支付取消队列 */

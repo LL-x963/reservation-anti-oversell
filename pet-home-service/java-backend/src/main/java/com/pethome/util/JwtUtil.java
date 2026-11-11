@@ -28,6 +28,9 @@ public class JwtUtil {
     /** 身份类型 claim 名称 */
     public static final String CLAIM_USER_TYPE = "userType";
 
+    /** 员工角色 claim 名称（仅管理端 token 携带） */
+    public static final String CLAIM_ROLE = "role";
+
     private final JwtProperties jwtProperties;
 
     /**
@@ -52,14 +55,26 @@ public class JwtUtil {
      * @param expireSeconds 有效期（秒）
      */
     public String generateToken(Long userId, UserType userType, long expireSeconds) {
+        return generateToken(userId, userType, expireSeconds, null);
+    }
+
+    /**
+     * 生成 token，可携带管理端员工角色
+     *
+     * @param role 员工角色（ADMIN / OPERATOR），C 端用户传 null
+     */
+    public String generateToken(Long userId, UserType userType, long expireSeconds, String role) {
         long now = System.currentTimeMillis();
-        return Jwts.builder()
+        var builder = Jwts.builder()
                 .subject(String.valueOf(userId))
                 .claim(CLAIM_USER_TYPE, userType.getCode())
                 .issuedAt(new Date(now))
                 .expiration(new Date(now + expireSeconds * 1000L))
-                .signWith(secretKey())
-                .compact();
+                .signWith(secretKey());
+        if (StringUtils.isNotBlank(role)) {
+            builder.claim(CLAIM_ROLE, role);
+        }
+        return builder.compact();
     }
 
     /**
@@ -78,6 +93,13 @@ public class JwtUtil {
             throw new JwtException("token 中缺少身份信息");
         }
         return UserType.fromCode(typeCode);
+    }
+
+    /**
+     * 解析 token 中的员工角色，C 端 token 或未携带角色时返回 null
+     */
+    public String parseRole(String token) {
+        return parseClaims(token).get(CLAIM_ROLE, String.class);
     }
 
     /**

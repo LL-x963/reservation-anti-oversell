@@ -2,9 +2,11 @@ package com.pethome.config;
 
 import com.pethome.common.enums.UserType;
 import com.pethome.interceptor.AuthInterceptor;
+import com.pethome.interceptor.RoleInterceptor;
 import com.pethome.util.JwtUtil;
 import com.pethome.util.RedisUtil;
 import lombok.RequiredArgsConstructor;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
@@ -12,13 +14,14 @@ import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import java.nio.file.Paths;
+import java.util.Arrays;
 
 /**
- * WebMvc 配置：注册登录拦截器、跨域配置
+ * WebMvc 配置：注册登录 / 角色拦截器、跨域配置
  *
  * <p>按接口前缀区分身份：<br>
  * - /api/user/** 需要 C 端用户 token；<br>
- * - /api/admin/** 需要管理端员工 token。</p>
+ * - /api/admin/** 需要管理端员工 token，并按 {@code @RequireRole} 校验角色。</p>
  *
  * @author pet-home
  */
@@ -26,9 +29,10 @@ import java.nio.file.Paths;
 @RequiredArgsConstructor
 public class WebMvcConfig implements WebMvcConfigurer {
 
-    /** 放行路径：登录接口（含别名）、错误页、静态资源 */
+    /** 放行路径：登录 / 注册接口（含别名）、错误页、静态资源 */
     private static final String[] EXCLUDE_PATHS = {
             "/api/user/login",
+            "/api/user/register",
             "/api/admin/login",
             // 管理后台登录页使用的别名路径
             "/api/admin/employee/login",
@@ -45,6 +49,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
     private final RedisUtil redisUtil;
     private final JwtProperties jwtProperties;
     private final UploadProperties uploadProperties;
+    private final SecurityProperties securityProperties;
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
@@ -59,6 +64,12 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .addPathPatterns("/api/admin/**")
                 .excludePathPatterns(EXCLUDE_PATHS)
                 .order(2);
+
+        // 管理端角色校验：必须在身份校验之后执行
+        registry.addInterceptor(new RoleInterceptor())
+                .addPathPatterns("/api/admin/**")
+                .excludePathPatterns(EXCLUDE_PATHS)
+                .order(3);
     }
 
     /**
@@ -74,10 +85,27 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .addResourceLocations(location);
     }
 
+    /**
+     * 跨域配置：只放行 pethome.security.cors-allowed-origins 中显式配置的来源。
+     *
+     * <p>未配置时不放行任何跨域来源（浏览器同源策略生效），避免默认全开。
+     * 生产环境由启动自检保证该配置非空且不含 *。</p>
+     */
     @Override
     public void addCorsMappings(CorsRegistry registry) {
+        String origins = securityProperties.getCorsAllowedOrigins();
+        if (StringUtils.isBlank(origins)) {
+            return;
+        }
+        String[] patterns = Arrays.stream(origins.split(","))
+                .map(String::trim)
+                .filter(StringUtils::isNotBlank)
+                .toArray(String[]::new);
+        if (patterns.length == 0) {
+            return;
+        }
         registry.addMapping("/**")
-                .allowedOriginPatterns("*")
+                .allowedOriginPatterns(patterns)
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                 .allowedHeaders("*")
                 .allowCredentials(true)

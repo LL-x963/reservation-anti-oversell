@@ -59,13 +59,12 @@ public class CartServiceImpl implements CartService {
 
         String key = RedisKeyConstant.cartKey(userId);
         String field = String.valueOf(request.getServiceId());
-        // 已存在则数量累加
-        int target = currentQuantity(key, field) + request.getQuantity();
-        if (target > MAX_QUANTITY) {
+        // 原子累加并校验上限：读-改-写在并发下会丢更新，这里交给 Redis 原子执行
+        long target = redisUtil.hIncrementWithLimit(key, field, request.getQuantity(), MAX_QUANTITY);
+        if (target < 0) {
             throw new BusinessException("单个服务数量不能超过" + MAX_QUANTITY);
         }
 
-        redisUtil.hSet(key, field, target);
         refreshExpire(key);
         log.info("加入预约车成功: userId={}, serviceId={}, quantity={}", userId, request.getServiceId(), target);
     }
@@ -74,7 +73,7 @@ public class CartServiceImpl implements CartService {
     public List<CartItemVO> list() {
         Long userId = UserContext.requireUserId();
         String key = RedisKeyConstant.cartKey(userId);
-        Map<Object, Object> entries = redisUtil.hGetAll(key);
+        Map<Object, Object> entries = redisUtil.hGetAllString(key);
         if (CollectionUtils.isEmpty(entries)) {
             return Collections.emptyList();
         }
@@ -104,7 +103,9 @@ public class CartServiceImpl implements CartService {
         }
 
         if (!invalidFields.isEmpty()) {
-            redisUtil.hDelete(key, invalidFields.toArray());
+            redisUtil.hDeleteString(key, invalidFields.stream()
+                    .map(String::valueOf)
+                    .toArray(String[]::new));
             log.info("预约车自动清理失效服务: userId={}, fields={}", userId, invalidFields);
         }
         refreshExpire(key);
@@ -120,12 +121,12 @@ public class CartServiceImpl implements CartService {
 
         String key = RedisKeyConstant.cartKey(userId);
         String field = String.valueOf(request.getServiceId());
-        if (!redisUtil.hHasKey(key, field)) {
+        if (!redisUtil.hHasKeyString(key, field)) {
             throw new BusinessException("预约车中不存在该服务");
         }
 
         // 直接覆盖为传入数量
-        redisUtil.hSet(key, field, request.getQuantity());
+        redisUtil.hSetString(key, field, String.valueOf(request.getQuantity()));
         refreshExpire(key);
         log.info("修改预约车数量成功: userId={}, serviceId={}, quantity={}",
                 userId, request.getServiceId(), request.getQuantity());
@@ -136,11 +137,11 @@ public class CartServiceImpl implements CartService {
         Long userId = UserContext.requireUserId();
         String key = RedisKeyConstant.cartKey(userId);
         String field = String.valueOf(serviceId);
-        if (!redisUtil.hHasKey(key, field)) {
+        if (!redisUtil.hHasKeyString(key, field)) {
             throw new BusinessException("预约车中不存在该服务");
         }
 
-        redisUtil.hDelete(key, field);
+        redisUtil.hDeleteString(key, field);
         refreshExpire(key);
         log.info("删除预约车服务成功: userId={}, serviceId={}", userId, serviceId);
     }

@@ -1,0 +1,62 @@
+# ============================================================
+# 本地开发 / 自动化测试专用配置
+# 该文件包含弱口令与开放配置，严禁用于生产（prod profile 会做启动自检）
+# ============================================================
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/pet_home?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
+    username: root
+    password: 123456
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 20
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      database: 0
+      password: 123456
+      timeout: 5000ms
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
+    virtual-host: /
+    connection-timeout: 5000
+    publisher-confirm-type: correlated
+    publisher-returns: true
+  # 本地额外加载演示数据；生产 profile 不包含该路径
+  flyway:
+    locations: classpath:db/migration,classpath:db/dev
+
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+pethome:
+  jwt:
+    secret: pethome-dev-only-jwt-secret-please-change-in-prod
+  knowledge:
+    api-key: pethome-rag-key
+  payment:
+    channel: mock
+    allow-mock-payment: true
+    callback-secret: pethome-dev-mock-pay-secret
+  auth:
+    # 测试与本地联调需要直接传 openid 登录；生产为 false
+    allow-openid-direct-login: true
+    # 本地集成测试会在短时间内反复调用登录接口，放宽限流避免测试之间互相干扰；
+    # 限流逻辑本身由单元测试直接覆盖。
+    rate-limit-per-minute: 100000
+  security:
+    allow-insecure-dev-config: true
+    cors-allowed-origins: "*"
+
+logging:
+  level:
+    com.pethome: debug

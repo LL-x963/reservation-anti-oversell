@@ -6,6 +6,7 @@ import com.pethome.dto.OrderPageQuery;
 import com.pethome.dto.OrderPayRequest;
 import com.pethome.dto.OrderSubmitRequest;
 import com.pethome.service.OrderService;
+import com.pethome.service.PaymentService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +35,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class UserOrderController {
 
     private final OrderService orderService;
+    private final PaymentService paymentService;
 
     /**
      * 提交预约
@@ -44,12 +46,14 @@ public class UserOrderController {
     }
 
     /**
-     * 模拟支付
+     * 发起支付
+     *
+     * <p>模拟渠道会同步完成支付并返回 mock=true；接入真实渠道后返回唤起支付所需参数，
+     * 订单在收到渠道回调并验签通过后才变为待确认。</p>
      */
     @PostMapping("/pay")
     public Result pay(@RequestBody @Valid OrderPayRequest request) {
-        orderService.pay(request);
-        return Result.success();
+        return Result.success(paymentService.pay(request.getOrderId()));
     }
 
     /**

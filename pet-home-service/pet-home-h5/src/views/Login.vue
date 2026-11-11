@@ -1,9 +1,9 @@
 <script setup>
-import { reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 
-import { login } from '@/api/user'
+import { login, register } from '@/api/user'
 import { setToken, setUserName } from '@/utils/auth'
 
 const route = useRoute()
@@ -11,37 +11,58 @@ const router = useRouter()
 
 const formRef = ref()
 const loading = ref(false)
+/** 当前模式：login 登录 / register 注册 */
+const mode = ref('login')
 
 const form = reactive({
   phone: '',
-  password: ''
+  password: '',
+  name: ''
 })
 
-/** 演示账号（后端 pet_home.sql 初始化的种子用户，点击提示可直接填入） */
-const DEMO = {
-  phone: '13800138000',
-  password: '123456'
+/** 注册密码强度校验：8~32 位且同时包含字母和数字（与后端 PasswordPolicy 保持一致） */
+function validateRegisterPassword(rule, value, callback) {
+  if (!value) {
+    callback(new Error('请输入密码'))
+    return
+  }
+  if (value.length < 8 || value.length > 32) {
+    callback(new Error('密码长度需为 8~32 位'))
+    return
+  }
+  if (!/[A-Za-z]/.test(value) || !/\d/.test(value)) {
+    callback(new Error('密码需同时包含字母和数字'))
+    return
+  }
+  callback()
 }
 
-/** 表单校验：手机号格式 + 密码必填（与后端 UserLoginRequest 的校验规则保持一致） */
-const rules = {
+/** 校验规则随模式切换 */
+const rules = computed(() => ({
   phone: [
     { required: true, message: '请输入手机号', trigger: 'blur' },
     { pattern: /^1[3-9]\d{9}$/, message: '手机号格式不正确', trigger: 'blur' }
   ],
-  password: [
-    { required: true, message: '请输入密码', trigger: 'blur' },
-    { min: 6, max: 20, message: '密码长度需为 6~20 位', trigger: 'blur' }
-  ]
+  password:
+    mode.value === 'login'
+      ? [
+          { required: true, message: '请输入密码', trigger: 'blur' },
+          { min: 6, max: 32, message: '密码长度需为 6~32 位', trigger: 'blur' }
+        ]
+      : [{ required: true, validator: validateRegisterPassword, trigger: 'blur' }],
+  name: [{ max: 64, message: '昵称长度不能超过 64', trigger: 'blur' }]
+}))
+
+function switchMode(target) {
+  if (mode.value === target) {
+    return
+  }
+  mode.value = target
+  form.password = ''
+  formRef.value?.clearValidate()
 }
 
-/** 一键填入演示账号 */
-function fillDemo() {
-  form.phone = DEMO.phone
-  form.password = DEMO.password
-}
-
-async function handleLogin() {
+async function handleSubmit() {
   try {
     await formRef.value.validate()
   } catch (e) {
@@ -51,6 +72,20 @@ async function handleLogin() {
 
   loading.value = true
   try {
+    if (mode.value === 'register') {
+      await register({
+        phone: form.phone.trim(),
+        password: form.password,
+        name: form.name.trim() || undefined
+      })
+      ElMessage.success('注册成功，请登录')
+      mode.value = 'login'
+      form.password = ''
+      form.name = ''
+      formRef.value?.clearValidate()
+      return
+    }
+
     const data = await login(form.phone.trim(), form.password)
     // 按约定存储 token 与用户名
     setToken(data.token)
@@ -78,7 +113,25 @@ async function handleLogin() {
       <p class="login__subtitle">专业宠物上门美容洗护</p>
     </div>
 
-    <!-- 登录表单 -->
+    <!-- 登录 / 注册切换 -->
+    <div class="login__tabs">
+      <span
+        class="login__tab h5-tap"
+        :class="{ 'is-active': mode === 'login' }"
+        @click="switchMode('login')"
+      >
+        登录
+      </span>
+      <span
+        class="login__tab h5-tap"
+        :class="{ 'is-active': mode === 'register' }"
+        @click="switchMode('register')"
+      >
+        注册
+      </span>
+    </div>
+
+    <!-- 表单 -->
     <el-form ref="formRef" :model="form" :rules="rules" class="login__form" @submit.prevent>
       <el-form-item prop="phone">
         <el-input
@@ -95,15 +148,29 @@ async function handleLogin() {
         </el-input>
       </el-form-item>
 
+      <el-form-item v-if="mode === 'register'" prop="name">
+        <el-input
+          v-model="form.name"
+          size="large"
+          maxlength="64"
+          placeholder="昵称（选填）"
+          clearable
+        >
+          <template #prefix>
+            <el-icon><User /></el-icon>
+          </template>
+        </el-input>
+      </el-form-item>
+
       <el-form-item prop="password">
         <el-input
           v-model="form.password"
           type="password"
           size="large"
-          maxlength="20"
+          :maxlength="mode === 'login' ? 32 : 32"
           show-password
-          placeholder="请输入密码"
-          @keyup.enter="handleLogin"
+          :placeholder="mode === 'login' ? '请输入密码' : '请设置密码（8~32 位，含字母和数字）'"
+          @keyup.enter="handleSubmit"
         >
           <template #prefix>
             <el-icon><Lock /></el-icon>
@@ -116,16 +183,19 @@ async function handleLogin() {
         type="primary"
         size="large"
         :loading="loading"
-        @click="handleLogin"
+        @click="handleSubmit"
       >
-        登录
+        {{ mode === 'login' ? '登录' : '注册' }}
       </el-button>
     </el-form>
 
-    <!-- 演示账号提示 -->
-    <div class="login__demo h5-tap" @click="fillDemo">
-      <p class="login__demo-account">演示账号：{{ DEMO.phone }} / {{ DEMO.password }}</p>
-      <p class="login__demo-tip">点击自动填入</p>
+    <div class="login__footer">
+      <p v-if="mode === 'login'" class="login__tip">
+        还没有账号？<span class="login__link h5-tap" @click="switchMode('register')">立即注册</span>
+      </p>
+      <p v-else class="login__tip">
+        已有账号？<span class="login__link h5-tap" @click="switchMode('login')">返回登录</span>
+      </p>
     </div>
   </div>
 </template>
@@ -172,9 +242,40 @@ async function handleLogin() {
   color: #909399;
 }
 
-/* ---------------- 登录表单 ---------------- */
+/* ---------------- 登录 / 注册切换 ---------------- */
+.login__tabs {
+  display: flex;
+  justify-content: center;
+  gap: 36px;
+  margin-top: 32px;
+}
+
+.login__tab {
+  position: relative;
+  padding-bottom: 6px;
+  font-size: 16px;
+  color: #909399;
+}
+
+.login__tab.is-active {
+  font-weight: 600;
+  color: #303133;
+}
+
+.login__tab.is-active::after {
+  position: absolute;
+  right: 8px;
+  bottom: 0;
+  left: 8px;
+  height: 3px;
+  content: '';
+  background-color: #409eff;
+  border-radius: 2px;
+}
+
+/* ---------------- 表单 ---------------- */
 .login__form {
-  margin-top: 40px;
+  margin-top: 24px;
 }
 
 /* 移动端点击区域：输入框与按钮统一为 48px 高度 */
@@ -202,25 +303,19 @@ async function handleLogin() {
   border-radius: 24px;
 }
 
-/* ---------------- 演示账号 ---------------- */
-.login__demo {
+/* ---------------- 底部提示 ---------------- */
+.login__footer {
   margin-top: auto;
   padding-top: 28px;
   text-align: center;
 }
 
-.login__demo-account {
-  display: inline-block;
-  padding: 6px 14px;
+.login__tip {
   font-size: 13px;
-  color: #409eff;
-  background-color: rgba(64, 158, 255, 0.1);
-  border-radius: 16px;
+  color: #909399;
 }
 
-.login__demo-tip {
-  margin-top: 6px;
-  font-size: 12px;
-  color: #c0c4cc;
+.login__link {
+  color: #409eff;
 }
 </style>
