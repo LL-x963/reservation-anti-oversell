@@ -33,6 +33,11 @@ class RagChain:
     """知识库问答链。"""
 
     def __init__(self, settings: Settings, vector_store: VectorStoreManager) -> None:
+        """初始化问答链。
+
+        :param settings: 服务配置（模型名、阈值、话术等）
+        :param vector_store: 向量库管理器，负责检索知识片段
+        """
         self._settings = settings
         self._vector_store = vector_store
         # LCEL 链：Prompt -> Ollama -> 纯文本输出

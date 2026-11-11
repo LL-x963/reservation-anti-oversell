@@ -12,6 +12,7 @@
 """
 
 import logging
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, status
@@ -49,8 +50,12 @@ _configure_logging()
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI):
-    """启动 / 关闭时打印关键配置，便于排查环境问题。"""
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    """启动 / 关闭时打印关键配置，便于排查环境问题。
+
+    :param _: FastAPI 实例（此处不使用）
+    :return: 生命周期异步上下文
+    """
     logger.info("=" * 64)
     logger.info("%s v%s 启动中", settings.app_name, settings.app_version)
     logger.info(

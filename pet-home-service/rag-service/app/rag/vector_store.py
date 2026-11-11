@@ -44,6 +44,10 @@ class VectorStoreManager:
     """Chroma 向量库管理器（进程内单例，见 get_vector_store）。"""
 
     def __init__(self, settings: Settings) -> None:
+        """初始化向量库管理器。
+
+        :param settings: 服务配置（向量模型、Chroma 目录、切分参数等）
+        """
         self._settings = settings
         self._rebuild_lock = threading.Lock()
 

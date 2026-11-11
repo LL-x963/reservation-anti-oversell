@@ -20,6 +20,11 @@ class RagEngineError(RuntimeError):
     """RAG 引擎不可用（连不上 Ollama、超时、模型不存在等），统一映射为 503。"""
 
     def __init__(self, message: str, *, kind: str = ENGINE_UNKNOWN) -> None:
+        """构造引擎异常。
+
+        :param message: 面向调用方的可读提示（不含内部堆栈）
+        :param kind: 异常类型，取值见模块级 ``ENGINE_*`` 常量
+        """
         super().__init__(message)
         self.kind = kind
         # 面向调用方的可读提示（内部细节已在上层日志中记录）
