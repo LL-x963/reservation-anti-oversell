@@ -25,6 +25,18 @@ public class AddressBookVO implements Serializable {
     /** 完整地址：省市区 + 详细地址 */
     private String fullAddress;
 
+    /** 省（编辑时回填） */
+    private String provinceName;
+
+    /** 市（编辑时回填） */
+    private String cityName;
+
+    /** 区县（编辑时回填） */
+    private String districtName;
+
+    /** 详细地址（编辑时回填） */
+    private String detail;
+
     /** 标签，如「家」「公司」 */
     private String label;
 

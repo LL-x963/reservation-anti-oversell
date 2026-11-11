@@ -254,9 +254,9 @@ function goServiceList() {
 
       <!-- 底部固定结算栏（悬浮在 TabBar 之上） -->
       <div class="cart__bar">
-        <div class="cart__all h5-tap" @click="toggleSelectAll">
-          <el-checkbox :model-value="allSelected" @change="toggleSelectAll" />
-          <span>全选</span>
+        <!-- 全选：只由 checkbox 的 change 触发，外层不再绑定 click，避免冒泡导致触发两次互相抵消 -->
+        <div class="cart__all">
+          <el-checkbox :model-value="allSelected" @change="toggleSelectAll">全选</el-checkbox>
         </div>
 
         <div class="cart__total">
